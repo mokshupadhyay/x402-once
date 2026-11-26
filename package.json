@@ -1,0 +1,42 @@
+{
+  "name": "x402-once",
+  "version": "0.0.0",
+  "description": "Pay once for each x402 purchase: a client wrapper that stores the signed payment before sending it and reuses it on retries, so a lost response or a timeout never becomes a second charge. Includes a fault-injection test kit.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+      "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+    },
+    "./testing": {
+      "import": { "types": "./dist/testing.d.ts", "default": "./dist/testing.js" },
+      "require": { "types": "./dist/testing.d.cts", "default": "./dist/testing.cjs" }
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --run",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "peerDependencies": {
+    "@x402/core": ">=2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@x402/core": "2.32.0",
+    "@x402/fetch": "2.32.0",
+    "fast-check": "^4.11.0",
+    "tsup": "^9.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
+  },
+  "keywords": ["x402", "payments", "idempotency", "retry", "stablecoin", "usdc", "ai-agents", "http-402"]
+}
