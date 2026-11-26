@@ -20,10 +20,12 @@ export function setup(
   store: PaymentStore = new MemoryPaymentStore(),
   /** Called with every request just before the seller sees it. */
   onRequest?: (request: Request) => void | Promise<void>,
+  /** Reuse another setup's clock, seller and signer, to model a second process talking to the same seller. */
+  shared?: { clock: ReturnType<typeof createClock>; merchant: ReturnType<typeof createSimulatedMerchant>; client: ReturnType<typeof createFakeClient> },
 ) {
-  const clock = createClock();
-  const merchant = createSimulatedMerchant({ now: clock.now, ...merchantOptions });
-  const client = createFakeClient('eip155:84532', { now: clock.now });
+  const clock = shared?.clock ?? createClock();
+  const merchant = shared?.merchant ?? createSimulatedMerchant({ now: clock.now, ...merchantOptions });
+  const client = shared?.client ?? createFakeClient('eip155:84532', { now: clock.now });
   const events: PaidFetchEvent[] = [];
   const spying = async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init);

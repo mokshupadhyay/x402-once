@@ -246,13 +246,35 @@ describe('limits', () => {
     expect(responses.every((r) => r.status === 200)).toBe(true);
   });
 
-  it('two processes sharing a store cannot both sign the same purchase', async () => {
+  it('two processes sharing a store and a seller: only one payment is saved and sent', async () => {
     const store = new MemoryPaymentStore();
-    const a = setup({}, {}, store);
-    const b = setup({}, {}, store);
+    const a = setup({ latencyMs: 20 }, {}, store);
+    const b = setup({}, {}, store, undefined, a); // a second process, same store, same seller
     const [ra, rb] = await Promise.all([a.paidFetch(URL_A), b.paidFetch(URL_A)]);
-    expect(ra.status === 200 || rb.status === 200).toBe(true);
-    expect(a.merchant.settlementCount + b.merchant.settlementCount).toBeLessThanOrEqual(2);
+
+    expect(a.merchant.settlementCount).toBe(1); // both signed, but only the one whose save won was ever sent
+    expect([ra.status, rb.status]).toContain(200);
     expect(store['records'].size).toBe(1);
+    expect([...a.events, ...b.events].some((e) => e.type === 'conflict')).toBe(true);
+  });
+});
+
+describe('MemoryPaymentStore', () => {
+  const record = (version: number) => ({ version }) as unknown as import('../src/index.js').PaymentRecord;
+
+  it('creates a record only when none exists', async () => {
+    const store = new MemoryPaymentStore();
+    expect(await store.compareAndSet('k', 0, record(1))).toEqual({ ok: true });
+    const again = await store.compareAndSet('k', 0, record(1));
+    expect(again.ok).toBe(false);
+  });
+
+  it('replaces a record only when the version matches, and reports the current one otherwise', async () => {
+    const store = new MemoryPaymentStore();
+    await store.compareAndSet('k', 0, record(1));
+    expect((await store.compareAndSet('k', 1, record(2))).ok).toBe(true);
+    const stale = await store.compareAndSet('k', 1, record(2));
+    expect(stale).toMatchObject({ ok: false, current: { version: 2 } });
+    expect((await store.get('k'))?.version).toBe(2);
   });
 });
