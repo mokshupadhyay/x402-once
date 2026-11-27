@@ -1,0 +1,174 @@
+{
+  "when": "2026-11-27T06:43:45.751Z",
+  "environment": "Base Sepolia (84532), public x402.org facilitator, real USDC",
+  "network": "eip155:84532",
+  "purchases": 20,
+  "faultRate": 0.3,
+  "retries": 2,
+  "seed": "bench-1",
+  "amountAtomic": "1000",
+  "results": [
+    {
+      "scenario": "no-faults",
+      "title": "No faults (sanity check)",
+      "client": "stock @x402/fetch",
+      "purchases": 20,
+      "delivered": 20,
+      "itemsPaidFor": 20,
+      "transfersOnChain": 20,
+      "movedUsdc": "0.02",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 0,
+      "toldItWasPaid": 0,
+      "sellerReplays": 0,
+      "faultsInjected": {
+        "dropAfterSettle": 0,
+        "error503AfterSettle": 0,
+        "dropBeforeSettle": 0
+      },
+      "errors": {},
+      "medianMs": 995,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "no-faults",
+      "title": "No faults (sanity check)",
+      "client": "x402-once",
+      "purchases": 20,
+      "delivered": 20,
+      "itemsPaidFor": 20,
+      "transfersOnChain": 20,
+      "movedUsdc": "0.02",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 0,
+      "toldItWasPaid": 0,
+      "sellerReplays": 0,
+      "faultsInjected": {
+        "dropAfterSettle": 0,
+        "error503AfterSettle": 0,
+        "dropBeforeSettle": 0
+      },
+      "errors": {},
+      "medianMs": 985,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-plain-seller",
+      "title": "30% of paid requests hit a fault; seller does not replay",
+      "client": "stock @x402/fetch",
+      "purchases": 20,
+      "delivered": 19,
+      "itemsPaidFor": 20,
+      "transfersOnChain": 28,
+      "movedUsdc": "0.028",
+      "itemsChargedTwiceOrMore": 6,
+      "extraTransfers": 8,
+      "paidButNotDelivered": 1,
+      "toldItWasPaid": 0,
+      "sellerReplays": 0,
+      "faultsInjected": {
+        "dropAfterSettle": 8,
+        "error503AfterSettle": 1,
+        "dropBeforeSettle": 1
+      },
+      "errors": {
+        "TypeError": 1
+      },
+      "medianMs": 1032,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-plain-seller",
+      "title": "30% of paid requests hit a fault; seller does not replay",
+      "client": "x402-once",
+      "purchases": 20,
+      "delivered": 14,
+      "itemsPaidFor": 20,
+      "transfersOnChain": 20,
+      "movedUsdc": "0.02",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 6,
+      "toldItWasPaid": 6,
+      "sellerReplays": 0,
+      "faultsInjected": {
+        "dropAfterSettle": 6,
+        "error503AfterSettle": 0,
+        "dropBeforeSettle": 1
+      },
+      "errors": {
+        "SettledWithoutDeliveryError": 6
+      },
+      "medianMs": 1000,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-replaying-seller",
+      "title": "30% of paid requests hit a fault; seller replays a settled payment",
+      "client": "stock @x402/fetch",
+      "purchases": 20,
+      "delivered": 17,
+      "itemsPaidFor": 18,
+      "transfersOnChain": 26,
+      "movedUsdc": "0.026",
+      "itemsChargedTwiceOrMore": 6,
+      "extraTransfers": 8,
+      "paidButNotDelivered": 1,
+      "toldItWasPaid": 0,
+      "sellerReplays": 0,
+      "faultsInjected": {
+        "dropAfterSettle": 8,
+        "error503AfterSettle": 1,
+        "dropBeforeSettle": 1
+      },
+      "errors": {
+        "TypeError": 1
+      },
+      "medianMs": 1007,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-replaying-seller",
+      "title": "30% of paid requests hit a fault; seller replays a settled payment",
+      "client": "x402-once",
+      "purchases": 20,
+      "delivered": 18,
+      "itemsPaidFor": 18,
+      "transfersOnChain": 18,
+      "movedUsdc": "0.018",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 0,
+      "toldItWasPaid": 0,
+      "sellerReplays": 5,
+      "faultsInjected": {
+        "dropAfterSettle": 5,
+        "error503AfterSettle": 0,
+        "dropBeforeSettle": 1
+      },
+      "errors": {},
+      "medianMs": 982,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    }
+  ]
+}

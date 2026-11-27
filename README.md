@@ -102,7 +102,7 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 - The property tests found a real bug in the first design (a payment that settled but was never delivered could be bought again). It is fixed and has a regression test.
 
 **Not proven yet:**
-- Behaviour on a public testnet. The benchmark in [bench/](bench/README.md) runs the official seller and facilitator code on a local chain (40 purchases, 30% of paid requests lose their response; seed `bench-1`); the Base Sepolia run is set up but not yet done.
+- Behaviour on a public testnet. The benchmark in [bench/](bench/README.md) runs the official seller and facilitator code on a local chain (40 purchases, 30% of paid requests lose their response; seed `bench-1`); the same run on **Base Sepolia** with the public x402.org facilitator is below.
 
 | Seller | Client | Delivered | Transfers on chain | Items charged twice | Wasted transfers |
 |---|---|---|---|---|---|
@@ -111,7 +111,18 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 | replays a settled payment | stock | 38/40 | 51 | 9 | 11 |
 | replays a settled payment | `x402-once` | 40/40 | 40 | 0 | 0 |
 
-The trade is plain: with a seller that cannot replay, `x402-once` will not pay twice to get the data back, so some items are paid for and not delivered, and it says so. Local chain only; numbers from a public testnet are still to come.
+The trade is plain: with a seller that cannot replay, `x402-once` will not pay twice to get the data back, so some items are paid for and not delivered, and it says so. 
+
+**Base Sepolia** (20 purchases, same fault seed, real USDC, public facilitator):
+
+| Seller | Client | Delivered | Transfers on chain | Items charged twice | Wasted transfers |
+|---|---|---|---|---|---|
+| plain | stock `@x402/fetch` | 19/20 | 28 | 6 | 8 |
+| plain | `x402-once` | 14/20, the other 6 reported with the transaction | 20 | 0 | 0 |
+| replays a settled payment | stock | 17/20 | 26 | 6 | 8 |
+| replays a settled payment | `x402-once` | 18/20 | 18 | 0 | 0 |
+
+In the last two rows, 2 of 20 items were paid for by neither client (18 items settled each) and the cause is not yet explained; the run did not record the seller's rejection reasons. The 6 faulted items in the plain row happen to be the same count for both clients only because both met the same fault schedule. Small sample: treat the percentages loosely.
 - Solana (`svm`) payments. Only the EVM `exact` scheme is covered; other schemes fall back to the seller's `maxTimeoutSeconds` and have no resolver, so they fail closed.
 - x402 v1 payloads, axios, and the client's recovery hooks.
 - Two machines sharing one store. `FilePaymentStore` is for one machine.
