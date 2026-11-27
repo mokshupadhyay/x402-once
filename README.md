@@ -13,6 +13,10 @@ If a response is lost after the seller settled, the stock x402 client signs a se
 
 **Use it when** your buyer (an agent, a script, a backend) retries paid calls and a second charge would hurt. **Do not rely on it when:** the seller or facilitator itself settles one payment twice ([#786](https://github.com/x402-foundation/x402/issues/786)); you need the data more than you need to avoid a second payment and your seller cannot replay a settled payment (you will get `SettledWithoutDeliveryError` instead of the data); you run several machines against one store (the file store is for one machine); you pay on Solana, x402 v1 or through axios (not covered: it fails closed).
 
+## Related work
+
+An open pull request in the x402 repository, [#4094](https://github.com/x402-foundation/x402/pull/4094), proposes the same fix inside `@x402/fetch` (hold the signed payment per purchase, re-present it, reconcile on chain with `authorizationState` before signing again). If it merges, you may not need this package. `x402-once` works today with the `@x402/core` client you already have, and adds a durable file store, several RPC providers that must agree, Permit2 inspection, limits on what you will pay, a fault-injection testing kit and the benchmark in `bench/`. The discussion is in [#3438](https://github.com/x402-foundation/x402/issues/3438) and [#4198](https://github.com/x402-foundation/x402/issues/4198).
+
 ## The bug
 
 ```
@@ -162,7 +166,7 @@ The trade is plain: with a seller that cannot replay, `x402-once` will not pay t
 
 A further 40-purchase run (seed `bench-3`), made after the transaction lookup was fixed to work on public RPCs that cap log queries at about 200 blocks: with a plain seller the standard client made 48 transfers for 37 items and `x402-once` 38 for 38; all 8 purchases that `x402-once` reported as paid-but-undelivered named their transaction.
 
-With no faults at all, the public x402.org facilitator failed to settle 6 to 8 of every 100 payments, for both clients. That is why "delivered" is below 100 in the first rows. Across every Base Sepolia run so far (20, 20 and 100 purchases per row), the stock client paid 5 to 19 extra times per fault row and `x402-once` never paid twice.
+With no faults at all, the public x402.org facilitator failed to settle 5 to 8 of every 100 payments, for both clients. That is why "delivered" is below 100 in the first rows. Across every Base Sepolia run so far (20, 20 and 100 purchases per row), the stock client paid 5 to 19 extra times per fault row and `x402-once` never paid twice.
 
 - Across both runs the stock client paid 5 to 8 extra times per fault scenario. `x402-once` never paid twice.
 - With a plain seller, the 6 items `x402-once` did not receive in each run were all reported as `SettledWithoutDeliveryError`. Put differently: the stock client paid for the same items twice to get them (28 and 23 transfers for 19 and 16 items) while `x402-once` paid 20 and 19 transfers for 14 and 13 items.
