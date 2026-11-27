@@ -103,6 +103,11 @@ export interface PaidFetchOptions {
    * `x402Client` enforces. Strongly recommended: the seller chooses the payee, asset and price.
    */
   limits?: PaymentLimits;
+  /**
+   * Allow payment types this package cannot inspect (for example Solana). By default they are refused before anything
+   * is sent, because nothing could check that the signed payment matches the seller's offer. Off by default.
+   */
+  allowUninspected?: boolean;
   /** Allow sending the signed payment over plain http. Off by default; only localhost is exempt. For local testing. */
   allowInsecureHttp?: boolean;
   /** Refuse a signed payment that stays valid longer than this (the seller picks it), in ms. Default 3600000 (1 hour). */
@@ -134,6 +139,11 @@ export interface PaymentLimits {
   networks?: string[];
   /** Token contract addresses (case-insensitive). */
   assets?: string[];
+  /**
+   * Permit2 payments only: contracts allowed to pull the funds (case-insensitive). Default: the official x402 exact
+   * Permit2 proxy. The spender decides where the money can go, so an unexpected one is refused.
+   */
+  permit2Spenders?: string[];
   /** Payee addresses (case-insensitive). */
   payTo?: string[];
   /** Largest amount for one purchase, in the token's smallest unit, as a decimal string. */

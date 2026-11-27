@@ -6,6 +6,17 @@ interface Eip3009Authorization {
   validBefore?: unknown;
 }
 
+interface Permit2Authorization {
+  from?: unknown;
+  nonce?: unknown;
+  deadline?: unknown;
+}
+
+function permit2Of(payload: Record<string, unknown>): Permit2Authorization | undefined {
+  const auth = payload['permit2Authorization'];
+  return auth && typeof auth === 'object' ? (auth as Permit2Authorization) : undefined;
+}
+
 function authorizationOf(payload: Record<string, unknown>): Eip3009Authorization | undefined {
   const auth = payload['authorization'];
   return auth && typeof auth === 'object' ? (auth as Eip3009Authorization) : undefined;
@@ -17,7 +28,7 @@ function authorizationOf(payload: Record<string, unknown>): Eip3009Authorization
  * the seller's `maxTimeoutSeconds`.
  */
 export function expiryOf(payload: Record<string, unknown>, maxTimeoutSeconds: number, signedAt: number): number {
-  const validBefore = Number(authorizationOf(payload)?.validBefore);
+  const validBefore = Number(authorizationOf(payload)?.validBefore ?? permit2Of(payload)?.deadline);
   if (Number.isFinite(validBefore) && validBefore > 0) return validBefore * 1000;
   return signedAt + maxTimeoutSeconds * 1000;
 }
@@ -44,11 +55,19 @@ export interface EvmAuthorizationResolverOptions {
   blockTag?: 'latest' | 'safe' | 'finalized';
   /** Give up on one RPC call after this many ms. Default 10000. */
   requestTimeoutMs?: number;
+  /**
+   * Refuse to be set up with fewer providers than this for any network. A single provider can be wrong or lagging,
+   * and "never settled" is the answer that can lead to a second payment. Default 1; use 2 or more in production.
+   */
+  minProviders?: number;
 }
 
 const AUTHORIZATION_STATE = '0xe94a0102'; // authorizationState(address,bytes32), the EIP-3009 view function
 const AUTHORIZATION_USED = '0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5'; // keccak256("AuthorizationUsed(address,bytes32)")
 const MAX_RPC_BYTES = 1024 * 1024;
+const PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
+const NONCE_BITMAP = '0x4fe02b44'; // nonceBitmap(address,uint256) on Permit2
+const wordOf = (value: bigint) => value.toString(16).padStart(64, '0');
 
 const pad32 = (hex: string) => hex.replace(/^0x/, '').toLowerCase().padStart(64, '0');
 
@@ -82,6 +101,7 @@ export function evmAuthorizationResolver(options: EvmAuthorizationResolverOption
   for (const [network, value] of Object.entries(options.rpcUrls)) {
     const list = (Array.isArray(value) ? value : [value]).filter((u) => typeof u === 'string');
     list.forEach(checkRpcUrl);
+    if (list.length < (options.minProviders ?? 1)) throw new Error(`x402-once: ${network} has ${list.length} RPC provider(s); minProviders is ${options.minProviders}`);
     urlsFor.set(network, list);
   }
 
@@ -119,9 +139,14 @@ export function evmAuthorizationResolver(options: EvmAuthorizationResolverOption
   /** One provider's answer. */
   async function ask(url: string, record: PaymentRecord): Promise<SettlementFinding> {
     const accepted = record.payload.accepted;
-    const auth = authorizationOf(record.payload.payload);
-    if (!auth || typeof auth.from !== 'string' || typeof auth.nonce !== 'string') return { verdict: 'unknown' };
-    if (!/^0x[0-9a-fA-F]{64}$/.test(auth.nonce) || !/^0x[0-9a-fA-F]{40}$/.test(auth.from)) return { verdict: 'unknown' };
+    const eip3009 = authorizationOf(record.payload.payload);
+    const permit2 = permit2Of(record.payload.payload);
+    const owner = eip3009?.from ?? permit2?.from;
+    if ((!eip3009 && !permit2) || typeof owner !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(owner)) return { verdict: 'unknown' };
+    const nonce = eip3009?.nonce ?? permit2?.nonce;
+    if (eip3009 && (typeof nonce !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(nonce))) return { verdict: 'unknown' };
+    if (!eip3009 && (typeof nonce !== 'string' || !/^[0-9]{1,78}$/.test(nonce))) return { verdict: 'unknown' };
+    const deadline = Number(eip3009?.validBefore ?? permit2?.deadline);
     try {
       // The RPC must be on the chain the seller named, or its answer is about some other token that shares an address.
       const wanted = /^eip155:([0-9]+)$/.exec(accepted.network)?.[1];
@@ -135,19 +160,29 @@ export function evmAuthorizationResolver(options: EvmAuthorizationResolverOption
       if (!at) return { verdict: 'unknown' };
       const chainTime = typeof block?.timestamp === 'string' ? Number(BigInt(block.timestamp)) : Number.NaN;
 
-      const result = await rpc(url, 'eth_call', [{ to: accepted.asset, data: AUTHORIZATION_STATE + pad32(auth.from) + pad32(auth.nonce) }, at]);
-      // Exactly one 32-byte word. "0x" (no contract at that address, wrong chain, odd RPC) is NOT "never used".
-      if (typeof result !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(result)) return { verdict: 'unknown' };
-      if (/^0x0{63}1$/.test(result)) {
-        const transaction = await findTransaction(url, accepted.asset, auth.from, auth.nonce, at);
+      let used: boolean;
+      if (eip3009) {
+        const result = await rpc(url, 'eth_call', [{ to: accepted.asset, data: AUTHORIZATION_STATE + pad32(owner) + pad32(nonce as string) }, at]);
+        // Exactly one 32-byte word. "0x" (no contract at that address, wrong chain, odd RPC) is NOT "never used".
+        if (typeof result !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(result)) return { verdict: 'unknown' };
+        if (/^0x0{63}1$/.test(result)) used = true;
+        else if (/^0x0{64}$/.test(result)) used = false;
+        else return { verdict: 'unknown' };
+      } else {
+        // Permit2 keeps used nonces in a bitmap: word = nonce >> 8, bit = nonce & 255.
+        const value = BigInt(nonce as string);
+        const word = value >> 8n;
+        const result = await rpc(url, 'eth_call', [{ to: PERMIT2, data: NONCE_BITMAP + pad32(owner) + wordOf(word) }, at]);
+        if (typeof result !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(result)) return { verdict: 'unknown' };
+        used = ((BigInt(result) >> (value & 255n)) & 1n) === 1n;
+      }
+
+      if (used) {
+        const transaction = eip3009 ? await findTransaction(url, accepted.asset, owner, nonce as string, at) : undefined;
         return transaction ? { verdict: 'settled', transaction } : { verdict: 'settled' };
       }
-      if (/^0x0{64}$/.test(result)) {
-        const validBefore = Number(auth.validBefore);
-        if (!Number.isFinite(validBefore) || validBefore <= 0) return { verdict: 'unknown' };
-        return chainTime >= validBefore + margin ? { verdict: 'unsettled' } : { verdict: 'unknown' };
-      }
-      return { verdict: 'unknown' };
+      if (!Number.isFinite(deadline) || deadline <= 0) return { verdict: 'unknown' };
+      return chainTime >= deadline + margin ? { verdict: 'unsettled' } : { verdict: 'unknown' };
     } catch {
       return { verdict: 'unknown' };
     }

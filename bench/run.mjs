@@ -115,7 +115,13 @@ async function main() {
       const outcomes = [];
       for (let i = 0; i < N; i++) outcomes.push(await purchase(client.fetch, `${seller.base}/item/${i}`));
       if (process.env.DEBUG_BENCH) console.log(JSON.stringify(outcomes.slice(0, 6)), JSON.stringify({ ...seller.stats, log: seller.stats.log.length }));
-      const allLogs = await publicClient.getLogs({ address: env.asset, event: transferEvent, args: { to: env.payTo }, fromBlock: startBlock, toBlock: 'latest' });
+      // Public RPCs cap eth_getLogs at about 200 blocks, so read the transfers in windows.
+      const endBlock = await publicClient.getBlockNumber({ cacheTime: 0 });
+      const allLogs = [];
+      for (let from = startBlock; from <= endBlock; from += 150n) {
+        const to = from + 149n < endBlock ? from + 149n : endBlock;
+        allLogs.push(...(await publicClient.getLogs({ address: env.asset, event: transferEvent, args: { to: env.payTo }, fromBlock: from, toBlock: to })));
+      }
       const logs = allLogs.filter((log) => log.blockNumber > startBlock);
       const endBalance = await balance(env.payTo);
 

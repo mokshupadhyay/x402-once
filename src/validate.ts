@@ -49,7 +49,9 @@ const isAtomic = (value: unknown): value is string => typeof value === 'string' 
  * payment is saved or sent: what it claims to accept must be one of the seller's offers, and for an EVM authorization
  * the signed payee, amount and deadline must match what it claims. Anything else is refused.
  */
-export function checkPayment(payload: PaymentPayload, required: PaymentRequired, limits?: PaymentLimits): void {
+export const EXACT_PERMIT2_PROXY = '0x402085c248EeA27D92E8b30b2C58ed07f9E20001';
+
+export function checkPayment(payload: PaymentPayload, required: PaymentRequired, limits?: PaymentLimits, allowUninspected = false): void {
   const accepted = payload.accepted as unknown as Record<string, unknown> | undefined;
   if (!isObject(accepted)) throw new PaymentMismatchError('the payment names no accepted offer');
   const offers = Array.isArray(required.accepts) ? (required.accepts as unknown as Record<string, unknown>[]) : [];
@@ -74,13 +76,38 @@ export function checkPayment(payload: PaymentPayload, required: PaymentRequired,
 
   const inner = payload.payload as Record<string, unknown> | undefined;
   const authorization = isObject(inner) ? inner['authorization'] : undefined;
-  if (authorization === undefined) return; // not an EIP-3009 payment: nothing more this package can check
-  if (!isObject(authorization)) throw new PaymentMismatchError('the authorization is malformed');
-  if (!sameText(authorization['to'], accepted['payTo'])) throw new PaymentMismatchError('the signed payee differs from the offer');
-  if (!isAtomic(authorization['value']) || authorization['value'] !== String(accepted['amount'])) {
-    throw new PaymentMismatchError('the signed amount differs from the offer');
+  const permit2 = isObject(inner) ? inner['permit2Authorization'] : undefined;
+
+  if (authorization !== undefined) {
+    if (!isObject(authorization)) throw new PaymentMismatchError('the authorization is malformed');
+    if (!sameText(authorization['to'], accepted['payTo'])) throw new PaymentMismatchError('the signed payee differs from the offer');
+    if (!isAtomic(authorization['value']) || authorization['value'] !== String(accepted['amount'])) {
+      throw new PaymentMismatchError('the signed amount differs from the offer');
+    }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(String(authorization['from']))) throw new PaymentMismatchError('the payer is not an address');
+    if (!/^0x[0-9a-fA-F]{64}$/.test(String(authorization['nonce']))) throw new PaymentMismatchError('the nonce is not 32 bytes');
+    if (!isAtomic(authorization['validBefore']) || !isAtomic(authorization['validAfter'])) throw new PaymentMismatchError('the validity window is malformed');
+    return;
   }
-  if (!/^0x[0-9a-fA-F]{40}$/.test(String(authorization['from']))) throw new PaymentMismatchError('the payer is not an address');
-  if (!/^0x[0-9a-fA-F]{64}$/.test(String(authorization['nonce']))) throw new PaymentMismatchError('the nonce is not 32 bytes');
-  if (!isAtomic(authorization['validBefore']) || !isAtomic(authorization['validAfter'])) throw new PaymentMismatchError('the validity window is malformed');
+
+  if (permit2 !== undefined) {
+    if (!isObject(permit2)) throw new PaymentMismatchError('the Permit2 authorization is malformed');
+    const permitted = permit2['permitted'];
+    const witness = permit2['witness'];
+    if (!isObject(permitted) || !isObject(witness)) throw new PaymentMismatchError('the Permit2 authorization is malformed');
+    // The spender is the contract that pulls the funds. If it is not the expected proxy, the money can go anywhere.
+    const spenders = limits?.permit2Spenders ?? [EXACT_PERMIT2_PROXY];
+    if (!spenders.some((spender) => sameText(spender, permit2['spender']))) throw new PaymentMismatchError(`the Permit2 spender ${String(permit2['spender'])} is not an allowed contract`);
+    if (!sameText(permitted['token'], accepted['asset'])) throw new PaymentMismatchError('the Permit2 token differs from the offer');
+    if (!isAtomic(permitted['amount']) || permitted['amount'] !== String(accepted['amount'])) throw new PaymentMismatchError('the Permit2 amount differs from the offer');
+    if (!sameText(witness['to'], accepted['payTo'])) throw new PaymentMismatchError('the Permit2 payee differs from the offer');
+    if (!/^0x[0-9a-fA-F]{40}$/.test(String(permit2['from']))) throw new PaymentMismatchError('the payer is not an address');
+    if (!isAtomic(permit2['nonce']) || !isAtomic(permit2['deadline']) || !isAtomic(witness['validAfter'])) throw new PaymentMismatchError('the Permit2 nonce or validity window is malformed');
+    return;
+  }
+
+  // Something this package cannot inspect (for example a Solana transaction). Refuse unless the caller opted in.
+  if (!allowUninspected) {
+    throw new PaymentMismatchError('this payment type cannot be inspected by x402-once; it is refused unless allowUninspected is set');
+  }
 }

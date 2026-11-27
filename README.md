@@ -7,7 +7,7 @@ If a response is lost after the seller settled, the stock x402 client signs a se
 - **One install.** It wraps the `x402Client` you already have. No queue library, no second dependency.
 - **Non-custodial.** Your client signs. This package never sees a key.
 - **Fails closed.** If it cannot tell whether an old payment settled, it signs nothing and says so.
-- **Tested against the bug.** In the simulated and benchmark tests, random faults, clock jumps and retries never charged a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 60 of 60 hand-picked deliberate breaks of the source are caught by the tests (these are the author's own tests and mutations, not an outside audit).
+- **Tested against the bug.** In the simulated and benchmark tests, random faults, clock jumps and retries never charged a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 69 of 69 hand-picked deliberate breaks of the source are caught by the tests (these are the author's own tests and mutations, not an outside audit).
 
 > **Status: 0.x, not published yet.** Minor versions may change the API. Evidence comes from a simulated seller (unit and property tests) and from the official seller and facilitator code on a local chain and on Base Sepolia, with the lost responses injected by a proxy in front of the seller. See [What is and is not proven](#what-is-and-is-not-proven).
 
@@ -41,7 +41,12 @@ const client = x402Client.fromConfig({
 const paidFetch = createPaidFetch({
   client,
   // Optional but recommended: lets it prove an old payment never settled before signing a new one.
-  resolver: evmAuthorizationResolver({ rpcUrls: { 'eip155:8453': 'https://mainnet.base.org' } }),
+  // Use two or more independent providers: "never settled" is only believed when all of them agree.
+  resolver: evmAuthorizationResolver({
+    rpcUrls: { 'eip155:8453': ['https://mainnet.base.org', 'https://base-rpc.example-provider.com'] },
+    minProviders: 2,
+  }),
+  limits: { networks: ['eip155:8453'], maxAmount: '1000000' }, // at most 1 USDC per purchase
 });
 
 const response = await paidFetch('https://api.example.com/report'); // use it like fetch
@@ -118,7 +123,7 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 
 ## What is and is not proven
 
-**Proven (130 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
+**Proven (145 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
 - No purchase is paid twice under random faults, clock jumps and retries. The identical test finds double charges in the stock `@x402/fetch` wrapper.
 - The deadline is read from the real signed EIP-3009 authorization (checked with the official `@x402/evm` scheme and a throwaway key, no network).
 - The property tests found a real bug in the first design (a payment that settled but was never delivered could be bought again). It is fixed and has a regression test.
@@ -135,7 +140,7 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 
 The trade is plain: with a seller that cannot replay, `x402-once` will not pay twice to get the data back, so some items are paid for and not delivered, and it says so. 
 
-**Base Sepolia** (20 purchases per row, same fault schedule, real USDC, public facilitator). Two full runs:
+**Base Sepolia** (20 purchases per row, same fault schedule, real USDC, public facilitator). Two full runs of 20:
 
 | Seller | Client | Delivered (run 1 / run 2) | Transfers on chain (run 1 / run 2) | Items settled (run 1 / run 2) | Extra transfers |
 |---|---|---|---|---|---|
@@ -144,13 +149,26 @@ The trade is plain: with a seller that cannot replay, `x402-once` will not pay t
 | replays a settled payment | stock | 17 / 17 | 26 / 26 | 18 / 19 | 8 / 7 |
 | replays a settled payment | `x402-once` | 18 / 19 | 18 / 19 | 18 / 19 | 0 / 0 |
 
+**Base Sepolia, 100 purchases per row** (seed `bench-2`, run on the code of commit `20df316`; the later Permit2 changes do not touch the EIP-3009 path):
+
+| Seller | Client | Delivered | Transfers on chain | Items settled | Items charged twice | Extra transfers |
+|---|---|---|---|---|---|---|
+| no faults | stock `@x402/fetch` | 92/100 | 92 | 92 | 0 | 0 |
+| no faults | `x402-once` | 94/100 | 94 | 94 | 0 | 0 |
+| plain | stock | 92/100 | 113 | 94 | 17 | 19 |
+| plain | `x402-once` | 77/100, the other 19 reported with the transaction | 96 | 96 | 0 | 0 |
+| replays a settled payment | stock | 89/100 | 109 | 93 | 14 | 16 |
+| replays a settled payment | `x402-once` | 95/100 | 95 | 95 | 0 | 0 |
+
+With no faults at all, the public x402.org facilitator failed to settle 6 to 8 of every 100 payments, for both clients. That is why "delivered" is below 100 in the first rows. Across every Base Sepolia run so far (20, 20 and 100 purchases per row), the stock client paid 5 to 19 extra times per fault row and `x402-once` never paid twice.
+
 - Across both runs the stock client paid 5 to 8 extra times per fault scenario. `x402-once` never paid twice.
 - With a plain seller, the 6 items `x402-once` did not receive in each run were all reported as `SettledWithoutDeliveryError`. Put differently: the stock client paid for the same items twice to get them (28 and 23 transfers for 19 and 16 items) while `x402-once` paid 20 and 19 transfers for 14 and 13 items.
 - Facilitator failure reasons were recorded in run 2 only; run 1 did not log them.
 - Some items settled for neither client. Run 2 recorded why: the **public facilitator itself** intermittently failed to settle (`invalid_exact_evm_transaction_failed`: its own transaction nonce was behind, or the RPC rejected the transaction). That is outside both clients and hit them at random, 1 to 3 times per row. This is also why delivered counts vary between runs.
 - Run 2 also shows what `x402-once` relies on: on a re-sent payment the facilitator answers `invalid_exact_evm_nonce_already_used`, and the chain confirms the payment was used.
 - Small sample, one network, one seller. Treat the percentages loosely; the extra-transfer counts are the solid part.
-- Solana (`svm`) payments. Only the EVM `exact` scheme is covered; other schemes fall back to the seller's `maxTimeoutSeconds` and have no resolver, so they fail closed.
+- Solana (`svm`) payments. Only EVM payments (EIP-3009 and Permit2) can be inspected and resolved. Other payment types are refused before they are sent, unless you set `allowUninspected`; then there is no resolver and they fail closed after the deadline.
 - x402 v1 payloads, axios, and the client's recovery hooks.
 - Two machines sharing one store. `FilePaymentStore` is for one machine.
 
@@ -166,7 +184,7 @@ A saved record contains a **signed payment authorization**. Until its `validBefo
 - The package never sees your key: your `x402Client` signs.
 - **The payment is a bearer instrument.** Anyone who sees the `PAYMENT-SIGNATURE` header before it expires can submit it to the chain themselves. They cannot redirect the money (the payee and amount are signed), but the seller's facilitator would then find the payment already used and the buyer would be charged without delivery. So: only https (this package refuses plain http except localhost), no redirects to another origin, `Cache-Control: no-store` on the paid request. Sellers should answer paid requests with `Cache-Control: private, no-store` and not log the header.
 - **Set limits.** The seller chooses the payee, token and price. Pass `limits: { networks, assets, payTo, maxAmount }` so a payment outside what you intended is refused before it is saved or sent. This is in addition to the spend controls of your `x402Client` (by default, only known tokens and a $1 cap per payment).
-- **Before anything is sent**, the signed payment is checked against the seller's offer (payee, amount, token, network, nonce, payer, validity window), so a buggy or hostile signer, hook or dependency cannot get a different payment saved or sent. This check covers EIP-3009 (`exact`) payments. Permit2 payments are not inspected and have no resolver, so they fail closed after the deadline and need `forget`.
+- **Before anything is sent**, the signed payment is checked against the seller's offer (payee, amount, token, network, nonce, payer, validity window), so a buggy or hostile signer, hook or dependency cannot get a different payment saved or sent. This covers EIP-3009 payments and Permit2 payments (for Permit2 it also pins the `spender`, the contract that pulls the funds, to the official x402 proxy unless you list others in `limits.permit2Spenders`). Payment types it cannot inspect, such as Solana, are **refused before anything is sent** unless you set `allowUninspected: true`.
 - **A payer can cancel an authorization on chain** (`cancelAuthorization`). The resolver then reports `settled` with no transaction, because the nonce is used. That is a false "settled": it blocks a retry, it never causes a payment.
 
 ## Documentation

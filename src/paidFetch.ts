@@ -317,7 +317,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
 
     const payload = await options.client.createPaymentPayload(paymentRequired);
     emit({ type: 'signed', intent });
-    checkPayment(payload, paymentRequired, options.limits); // before it is saved or sent
+    checkPayment(payload, paymentRequired, options.limits, options.allowUninspected); // before it is saved or sent
     const time = now();
     const record: PaymentRecord = {
       schema: RECORD_SCHEMA,
