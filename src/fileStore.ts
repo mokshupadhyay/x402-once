@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { CompareAndSetResult, PaymentRecord, PaymentStore } from './types.js';
 
@@ -40,8 +40,17 @@ export class FilePaymentStore implements PaymentStore {
     return join(this.directory, createHash('sha256').update(intent).digest('hex') + suffix);
   }
 
+  /** Creates the directory if needed, and refuses one that someone else could write into or redirect with a symlink. */
   private ensureDirectory(): Promise<void> {
-    this.ready ??= mkdir(this.directory, { recursive: true, mode: 0o700 }).then(() => undefined);
+    this.ready ??= (async () => {
+      await mkdir(this.directory, { recursive: true, mode: 0o700 });
+      const info = await lstat(this.directory);
+      if (info.isSymbolicLink()) throw new Error(`The payment store directory ${this.directory} is a symbolic link. Refusing to use it.`);
+      if (process.platform !== 'win32') {
+        if (info.mode & 0o022) throw new Error(`The payment store directory ${this.directory} is writable by group or others. Run: chmod 700 "${this.directory}"`);
+        if (typeof process.getuid === 'function' && info.uid !== process.getuid()) throw new Error(`The payment store directory ${this.directory} belongs to another user.`);
+      }
+    })();
     return this.ready;
   }
 
@@ -85,16 +94,48 @@ export class FilePaymentStore implements PaymentStore {
     await this.withLock(intent, () => rm(this.path(intent, '.json'), { force: true }));
   }
 
+  /**
+   * Deletes records of finished purchases (settled, expired, abandoned) not touched for `olderThanMs`, and any
+   * leftover temporary files. Open purchases (`presented`, `undelivered`) are never deleted. Returns how many were removed.
+   */
+  async prune(options: { olderThanMs: number }): Promise<number> {
+    await this.ensureDirectory();
+    const cutoff = Date.now() - options.olderThanMs;
+    let removed = 0;
+    for (const name of await readdir(this.directory)) {
+      const path = join(this.directory, name);
+      if (name.endsWith('.tmp')) {
+        const age = await stat(path).then((info) => Date.now() - info.mtimeMs, () => 0);
+        if (age > this.staleLockMs) await unlink(path).catch(() => {});
+        continue;
+      }
+      if (!name.endsWith('.json')) continue;
+      try {
+        const record = JSON.parse(await readFile(path, 'utf8')) as PaymentRecord;
+        if (['settled', 'expired', 'abandoned'].includes(record.status) && record.updatedAt < cutoff) {
+          await rm(path, { force: true });
+          removed++;
+        }
+      } catch {
+        /* unreadable files are left for a human; prune never guesses */
+      }
+    }
+    return removed;
+  }
+
   private async writeDurably(intent: string, record: PaymentRecord, stillOwner: () => Promise<boolean>): Promise<void> {
     const target = this.path(intent, '.json');
     const temporary = `${target}.${randomBytes(6).toString('hex')}.tmp`;
-    const handle = await open(temporary, 'w', 0o600);
+    const handle = await open(temporary, 'wx', 0o600); // 'wx': never reuse or follow something already at that path
     try {
       await handle.writeFile(JSON.stringify(record));
       await handle.sync(); // on disk before it is visible under the real name
-    } finally {
-      await handle.close();
+    } catch (error) {
+      await handle.close().catch(() => {});
+      await unlink(temporary).catch(() => {}); // a full disk must not leave a half-written signed record behind
+      throw error;
     }
+    await handle.close();
     try {
       // The last moment to notice a broken lock: after this the new record is visible.
       if (!(await stillOwner())) throw new Error(`Lost the lock on "${intent}" while working; nothing was written.`);
@@ -140,7 +181,7 @@ export class FilePaymentStore implements PaymentStore {
     }
     const holds = async () => (await readFile(tokenFile, 'utf8').catch(() => undefined)) === token;
     try {
-      await writeFile(tokenFile, token);
+      await writeFile(tokenFile, token, { mode: 0o600 });
       return await work({ holds });
     } finally {
       // Only remove a lock that is still ours; after a stall it may belong to someone else by now.

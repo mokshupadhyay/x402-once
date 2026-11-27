@@ -14,6 +14,8 @@ export type PaymentStatus = 'presented' | 'settled' | 'undelivered' | 'expired' 
 
 /** What we saved about one purchase. The payload is a signed authorization, so keep the store as private as a session token. */
 export interface PaymentRecord {
+  /** Format of this record, so a newer version never misreads an older store or the reverse. */
+  schema?: number;
   /** Starts at 1 and goes up by one on every write. Stores use it for compare-and-set. */
   version: number;
   intent: string;
@@ -96,6 +98,10 @@ export interface PaidFetchOptions {
   resolver?: SettlementResolver;
   /** Longest to wait for the resolver before treating it as "cannot tell". Default 15000 ms. */
   resolverTimeoutMs?: number;
+  /** Refuse a signed payment that stays valid longer than this (the seller picks it), in ms. Default 3600000 (1 hour). */
+  maxValidityMs?: number;
+  /** Give up on one request to the seller after this long, in ms, so a hung seller cannot hold a purchase forever. Default 60000. 0 turns it off. */
+  requestTimeoutMs?: number;
   /** Most times one signed payment may be sent. Default 5. */
   maxPresentations?: number;
   /** Extra wait after the deadline before the resolver is asked, for clock differences. Default 30000 ms. */
@@ -109,6 +115,8 @@ export interface PaidFetch {
   (input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
   /** Gives up on a purchase so the next call starts a new one. Pass the `intent` from an error's `record`. */
   forget(intent: string): Promise<void>;
+  /** Resolves when the bookkeeping that runs after a response was handed over (marking a delivered body complete) has finished. Await it before a clean exit. */
+  idle(): Promise<void>;
   /** The store in use, for inspecting saved payments. */
   readonly store: PaymentStore;
 }

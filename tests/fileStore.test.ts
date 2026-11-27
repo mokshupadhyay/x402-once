@@ -172,6 +172,8 @@ describe('end to end with the file store', () => {
 
     const restarted = setup({}, {}, new FilePaymentStore({ directory }), undefined, { clock: first.clock, merchant: first.merchant, client: first.client });
     const retry = (await attempt(restarted.paidFetch)) as Response;
+    await retry.text();
+    await restarted.paidFetch.idle();
     expect(retry.status).toBe(200);
     expect(first.merchant.settlementCount).toBe(1);
   });

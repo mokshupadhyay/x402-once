@@ -7,9 +7,11 @@ If a response is lost after the seller settled, the stock x402 client signs a se
 - **One install.** It wraps the `x402Client` you already have. No queue library, no second dependency.
 - **Non-custodial.** Your client signs. This package never sees a key.
 - **Fails closed.** If it cannot tell whether an old payment settled, it signs nothing and says so.
-- **Tested against the bug.** Random faults, clock jumps and retries never charge a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 22 of 22 deliberate breaks are caught.
+- **Tested against the bug.** Random faults, clock jumps and retries never charge a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 40 of 40 hand-picked deliberate breaks of the source are caught by the tests (these are the author's own tests and mutations, not an outside audit).
 
-> **Status: 0.0.0, not published.** The evidence so far comes from a simulated seller. See [What is and is not proven](#what-is-and-is-not-proven).
+> **Status: 0.x, not published yet.** Minor versions may change the API. Evidence comes from a simulated seller (unit and property tests) and from the official seller and facilitator code on a local chain and on Base Sepolia, with the lost responses injected by a proxy in front of the seller. See [What is and is not proven](#what-is-and-is-not-proven).
+
+**Use it when** your buyer (an agent, a script, a backend) retries paid calls and a second charge would hurt. **Do not rely on it when:** the seller or facilitator itself settles one payment twice ([#786](https://github.com/x402-foundation/x402/issues/786)); you need the data more than you need to avoid a second payment and your seller cannot replay a settled payment (you will get `SettledWithoutDeliveryError` instead of the data); you run several machines against one store (the file store is for one machine); you pay on Solana, x402 v1 or through axios (not covered: it fails closed).
 
 ## The bug
 
@@ -28,8 +30,10 @@ One purchase, two settlements. The reference client mints a fresh nonce for ever
 ```ts
 import { x402Client } from '@x402/core/client';
 import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { privateKeyToAccount } from 'viem/accounts';
 import { createPaidFetch, evmAuthorizationResolver } from 'x402-once';
 
+const signer = privateKeyToAccount(process.env.BUYER_PRIVATE_KEY as `0x${string}`);
 const client = x402Client.fromConfig({
   schemes: [{ network: 'eip155:8453', client: new ExactEvmScheme(signer) }],
 });
@@ -44,6 +48,24 @@ const response = await paidFetch('https://api.example.com/report'); // use it li
 ```
 
 Retry the same call as often as you like. The same signed payment goes out each time.
+
+### Try it offline in 30 seconds
+
+No wallet, no network. The seller loses the response after it settled, then replays the answer:
+
+```ts
+import { createPaidFetch } from 'x402-once';
+import { createSimulatedMerchant, createFakeClient, scriptedFaults } from 'x402-once/testing';
+
+const seller = createSimulatedMerchant({ faults: scriptedFaults('drop-after-settle'), serveOnReplay: true });
+const paidFetch = createPaidFetch({ client: createFakeClient('eip155:84532'), fetch: seller.fetch });
+
+await paidFetch('https://seller.test/report').catch(() => 'response lost');
+const retry = await paidFetch('https://seller.test/report');
+console.log(retry.status, seller.settlementCount); // 200 1  (the stock client would print 200 2)
+```
+
+With a seller that cannot replay (`serveOnReplay: false`, like the official middleware today), the retry gets the seller's 402 back, or `SettledWithoutDeliveryError` if you configured a `resolver`. You are charged once either way.
 
 ### What a retry does
 
@@ -64,7 +86,7 @@ After a delivered purchase, the next identical call is a **new** purchase. To ma
 
 ### Stores
 
-`MemoryPaymentStore` is the default. It protects retries inside one process and forgets everything on restart. **For crashes and restarts, pass a durable `store`** (anything that implements `get` and an atomic `compareAndSet`). A saved record holds a signed authorization: protect it like a session token.
+`MemoryPaymentStore` is the default. It protects retries inside one process and forgets everything on restart. **For crashes and restarts, pass a durable `store`** (anything that implements `get` and an atomic `compareAndSet`). A saved record holds a signed authorization: see [Security](#security).
 
 For a single machine, use the file store. It writes each record to disk before returning (temp file, fsync, rename) and takes a per-purchase lock, so a restart or a second process on the same machine sees the same payments:
 
@@ -96,7 +118,7 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 
 ## What is and is not proven
 
-**Proven (64 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
+**Proven (94 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
 - No purchase is paid twice under random faults, clock jumps and retries. The identical test finds double charges in the stock `@x402/fetch` wrapper.
 - The deadline is read from the real signed EIP-3009 authorization (checked with the official `@x402/evm` scheme and a throwaway key, no network).
 - The property tests found a real bug in the first design (a payment that settled but was never delivered could be bought again). It is fixed and has a regression test.
@@ -123,7 +145,8 @@ The trade is plain: with a seller that cannot replay, `x402-once` will not pay t
 | replays a settled payment | `x402-once` | 18 / 19 | 18 / 19 | 18 / 19 | 0 / 0 |
 
 - Across both runs the stock client paid 5 to 8 extra times per fault scenario. `x402-once` never paid twice.
-- With a plain seller, the items `x402-once` did not receive (6 and 7 per run) were all reported as `SettledWithoutDeliveryError`.
+- With a plain seller, the 6 items `x402-once` did not receive in each run were all reported as `SettledWithoutDeliveryError`. Put differently: the stock client paid for the same items twice to get them (28 and 23 transfers for 19 and 16 items) while `x402-once` paid 20 and 19 transfers for 14 and 13 items.
+- Facilitator failure reasons were recorded in run 2 only; run 1 did not log them.
 - Some items settled for neither client. Run 2 recorded why: the **public facilitator itself** intermittently failed to settle (`invalid_exact_evm_transaction_failed`: its own transaction nonce was behind, or the RPC rejected the transaction). That is outside both clients and hit them at random, 1 to 3 times per row. This is also why delivered counts vary between runs.
 - Run 2 also shows what `x402-once` relies on: on a re-sent payment the facilitator answers `invalid_exact_evm_nonce_already_used`, and the chain confirms the payment was used.
 - Small sample, one network, one seller. Treat the percentages loosely; the extra-transfer counts are the solid part.
@@ -132,6 +155,22 @@ The trade is plain: with a seller that cannot replay, `x402-once` will not pay t
 - Two machines sharing one store. `FilePaymentStore` is for one machine.
 
 **Cannot fix, by design:** a seller or facilitator that settles the same payment twice ([#786](https://github.com/x402-foundation/x402/issues/786)), and sellers that answer a replay with a refusal instead of the resource (the buyer is charged once but gets nothing; the error says so).
+
+## Security
+
+A saved record contains a **signed payment authorization**. Until its `validBefore` passes, anyone who holds it can submit it. It can only move the signed amount to the signed `payTo`, so the damage is bounded, but treat it like a short-lived session token:
+
+- Keep the store directory out of git (add it to `.gitignore`), out of shared volumes and out of backups you do not control. The file store creates files readable by the owner only.
+- Once a purchase is delivered, the record keeps only what is needed to recognise it; the signed payload is not kept.
+- Purge old records (see [docs/OPERATIONS.md](docs/OPERATIONS.md)).
+- The package never sees your key: your `x402Client` signs.
+
+## Documentation
+
+- [docs/API.md](docs/API.md): every option, default, error and event.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md): what to do on each error, reconciliation, retention, troubleshooting, threat model.
+- [docs/QA_PLAN.md](docs/QA_PLAN.md): the test scenarios and release checklist.
+- [bench/README.md](bench/README.md): the on-chain benchmark.
 
 ## Design
 

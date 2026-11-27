@@ -1,5 +1,5 @@
 {
-  "when": "2026-11-27T06:26:28.294Z",
+  "when": "2026-11-27T07:27:15.781Z",
   "environment": "local anvil chain (31337), real x402 facilitator and seller code",
   "network": "eip155:31337",
   "purchases": 40,
@@ -22,13 +22,14 @@
       "paidButNotDelivered": 0,
       "toldItWasPaid": 0,
       "sellerReplays": 0,
+      "rejections": [],
       "faultsInjected": {
         "dropAfterSettle": 0,
         "error503AfterSettle": 0,
         "dropBeforeSettle": 0
       },
       "errors": {},
-      "medianMs": 1019,
+      "medianMs": 1045,
       "checks": {
         "chainMatchesBalance": true,
         "sellerLogMatchesChain": true
@@ -48,13 +49,14 @@
       "paidButNotDelivered": 0,
       "toldItWasPaid": 0,
       "sellerReplays": 0,
+      "rejections": [],
       "faultsInjected": {
         "dropAfterSettle": 0,
         "error503AfterSettle": 0,
         "dropBeforeSettle": 0
       },
       "errors": {},
-      "medianMs": 1040,
+      "medianMs": 1045,
       "checks": {
         "chainMatchesBalance": true,
         "sellerLogMatchesChain": true
@@ -74,6 +76,7 @@
       "paidButNotDelivered": 2,
       "toldItWasPaid": 0,
       "sellerReplays": 0,
+      "rejections": [],
       "faultsInjected": {
         "dropAfterSettle": 10,
         "error503AfterSettle": 3,
@@ -82,7 +85,7 @@
       "errors": {
         "TypeError": 2
       },
-      "medianMs": 1039,
+      "medianMs": 1047,
       "checks": {
         "chainMatchesBalance": true,
         "sellerLogMatchesChain": true
@@ -102,6 +105,62 @@
       "paidButNotDelivered": 9,
       "toldItWasPaid": 9,
       "sellerReplays": 0,
+      "rejections": [
+        {
+          "url": "/item/0",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/4",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/7",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/8",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/13",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/16",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/21",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/26",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/30",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        }
+      ],
       "faultsInjected": {
         "dropAfterSettle": 8,
         "error503AfterSettle": 1,
@@ -110,7 +169,7 @@
       "errors": {
         "SettledWithoutDeliveryError": 9
       },
-      "medianMs": 1040,
+      "medianMs": 1042,
       "checks": {
         "chainMatchesBalance": true,
         "sellerLogMatchesChain": true
@@ -130,6 +189,7 @@
       "paidButNotDelivered": 2,
       "toldItWasPaid": 0,
       "sellerReplays": 0,
+      "rejections": [],
       "faultsInjected": {
         "dropAfterSettle": 10,
         "error503AfterSettle": 3,
@@ -138,7 +198,7 @@
       "errors": {
         "TypeError": 2
       },
-      "medianMs": 1040,
+      "medianMs": 1053,
       "checks": {
         "chainMatchesBalance": true,
         "sellerLogMatchesChain": true
@@ -158,13 +218,14 @@
       "paidButNotDelivered": 0,
       "toldItWasPaid": 0,
       "sellerReplays": 9,
+      "rejections": [],
       "faultsInjected": {
         "dropAfterSettle": 8,
         "error503AfterSettle": 1,
         "dropBeforeSettle": 4
       },
       "errors": {},
-      "medianMs": 1040,
+      "medianMs": 1048,
       "checks": {
         "chainMatchesBalance": true,
         "sellerLogMatchesChain": true

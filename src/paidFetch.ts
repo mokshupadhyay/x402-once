@@ -7,10 +7,13 @@ import {
   StoreConflictError,
   TooManyPresentationsError,
   UnresolvedPaymentError,
+  UnsafeRedirectError,
+  ValidityTooLongError,
 } from './errors.js';
 import { deriveIntent } from './intent.js';
 import { expiryOf } from './resolve.js';
 import { MemoryPaymentStore } from './store.js';
+import { RECORD_SCHEMA, validateRecord } from './validate.js';
 import type { PaidFetch, PaidFetchOptions, PaymentRecord, PaymentStore, SettlementFinding, X402HttpClientLike } from './types.js';
 
 const MAX_PAYMENT_REQUIRED_BYTES = 64 * 1024;
@@ -28,9 +31,19 @@ type Existing = Response | { fresh: PaymentRecord | undefined };
 export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const store: PaymentStore = options.store ?? new MemoryPaymentStore();
-  const now = options.now ?? Date.now;
-  const maxPresentations = options.maxPresentations ?? 5;
-  const skew = options.expirySkewMs ?? 30_000;
+  const rawNow = options.now ?? Date.now;
+  // A clock that returns NaN would make every deadline comparison false and skip the safety waits. Refuse it.
+  const now = (): number => {
+    const time = rawNow();
+    if (!Number.isFinite(time)) throw new Error('x402-once: now() did not return a finite number');
+    return time;
+  };
+  const positiveInt = (value: number | undefined, fallback: number) => (Number.isInteger(value) && (value as number) >= 1 ? (value as number) : fallback);
+  const nonNegative = (value: number | undefined, fallback: number) => (typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback);
+  const maxPresentations = positiveInt(options.maxPresentations, 5);
+  const skew = nonNegative(options.expirySkewMs, 30_000);
+  const maxValidityMs = nonNegative(options.maxValidityMs, 3_600_000);
+  const requestTimeoutMs = nonNegative(options.requestTimeoutMs, 60_000);
   // A throwing listener must never lose a response that was already paid for.
   const emit = (event: Parameters<NonNullable<PaidFetchOptions['onEvent']>>[0]): void => {
     try {
@@ -40,6 +53,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     }
   };
   const inFlight = new Map<string, Promise<Response>>();
+  const background = new Set<Promise<unknown>>();
   let httpClientPromise: Promise<X402HttpClientLike> | undefined;
 
   const httpClient = (): Promise<X402HttpClientLike> => {
@@ -50,10 +64,62 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     return httpClientPromise;
   };
 
-  async function send(request: Request, headers: Record<string, string>): Promise<Response> {
-    const outgoing = request.clone();
-    for (const [name, value] of Object.entries(headers)) outgoing.headers.set(name, value);
-    return doFetch(outgoing);
+  /** Adds the request timeout to whatever signal the caller supplied. */
+  function limited(request: Request): Request {
+    if (!requestTimeoutMs || typeof AbortSignal.timeout !== 'function' || typeof AbortSignal.any !== 'function') return request;
+    return new Request(request, { signal: AbortSignal.any([request.signal, AbortSignal.timeout(requestTimeoutMs)]) });
+  }
+
+  /** The first, unpaid request. Nothing secret is in it, so ordinary redirect handling is fine. */
+  async function sendUnpaid(request: Request): Promise<Response> {
+    return doFetch(limited(request.clone()));
+  }
+
+  /**
+   * The paid request carries the signed payment, a bearer instrument. A redirect must never carry it to another
+   * origin (fetch only strips Authorization on cross-origin hops, not this header), so redirects are handled here:
+   * same-origin GET/HEAD hops are followed with the header re-attached; anything else stops with an error.
+   */
+  async function sendPaid(request: Request, headers: Record<string, string>): Promise<Response> {
+    const base = request.clone();
+    for (const [name, value] of Object.entries(headers)) base.headers.set(name, value);
+    let current = new Request(base, { redirect: 'manual' });
+    for (let hop = 0; hop <= 3; hop++) {
+      const response = await doFetch(limited(current));
+      const redirected = response.status >= 300 && response.status < 400 && response.status !== 304;
+      if (!redirected && response.type !== 'opaqueredirect') return response;
+
+      await response.body?.cancel().catch(() => {});
+      const location = response.headers.get('location');
+      const from = current.url;
+      let target: URL | undefined;
+      try {
+        target = location ? new URL(location, from) : undefined;
+      } catch {
+        target = undefined;
+      }
+      const method = request.method.toUpperCase();
+      if (!target || target.origin !== new URL(from).origin || (method !== 'GET' && method !== 'HEAD')) {
+        throw new UnsafeRedirectError(from, target?.href ?? '(unreadable location)');
+      }
+      current = new Request(target.href, { method, headers: base.headers, redirect: 'manual', signal: request.signal });
+    }
+    throw new UnsafeRedirectError(current.url, '(too many redirects)');
+  }
+
+  /** `compareAndSet` must answer exactly `{ ok: true }` or `{ ok: false }`. Anything else is a broken store, not a success. */
+  async function cas(intent: string, expectedVersion: number, next: PaymentRecord) {
+    const result = await store.compareAndSet(intent, expectedVersion, next);
+    if (!result || typeof result !== 'object' || (result.ok !== true && result.ok !== false)) {
+      throw new Error('x402-once: the store answered compareAndSet with something other than { ok: true } or { ok: false }');
+    }
+    return result;
+  }
+
+  /** Reads a record and refuses anything damaged or edited, instead of treating it as "nothing on record". */
+  async function load(intent: string): Promise<PaymentRecord | undefined> {
+    const raw = await store.get(intent);
+    return raw === undefined || raw === null ? undefined : validateRecord(intent, raw);
   }
 
   /**
@@ -63,7 +129,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
    */
   async function update(record: PaymentRecord, patch: Partial<PaymentRecord>): Promise<PaymentRecord> {
     const next: PaymentRecord = { ...record, ...patch, version: record.version + 1, updatedAt: now() };
-    const result = await store.compareAndSet(record.intent, record.version, next);
+    const result = await cas(record.intent, record.version, next);
     if (result.ok) return next;
     emit({ type: 'conflict', intent: record.intent });
     throw new StaleRecordError(record.intent);
@@ -77,9 +143,10 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
         options.resolver(record),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('resolver timed out')), options.resolverTimeoutMs ?? 15_000).unref?.()),
       ]);
-      const finding: SettlementFinding = typeof answer === 'string' ? { verdict: answer } : answer;
-      const verdict = finding?.verdict;
-      return verdict === 'settled' || verdict === 'unsettled' ? finding : { verdict: 'unknown' };
+      const given: SettlementFinding = typeof answer === 'string' ? { verdict: answer } : answer;
+      const verdict = given?.verdict;
+      if (verdict !== 'settled' && verdict !== 'unsettled') return { verdict: 'unknown' };
+      return typeof given.transaction === 'string' && given.transaction ? { verdict, transaction: given.transaction } : { verdict };
     } catch {
       return { verdict: 'unknown' };
     }
@@ -98,19 +165,63 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     };
   }
 
+  /** Once a purchase is delivered the signed payment is dead weight and a liability: drop it from the record. */
+  const stripped = (record: PaymentRecord): Partial<PaymentRecord> => ({ headers: {}, payload: { ...record.payload, payload: {} } });
+
+  /**
+   * Hands the body to the caller untouched, but tells us how it ended. A body that dies halfway means the caller did
+   * not get what it paid for, so the record goes back to `presented` and a retry re-sends the same payment instead of
+   * being treated as a finished purchase.
+   */
+  function watchBody(response: Response, onComplete: () => void, onFailure: () => void): Response {
+    if (!response.body) {
+      onComplete();
+      return response;
+    }
+    const reader = response.body.getReader();
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            controller.close();
+            onComplete();
+          } else {
+            controller.enqueue(value);
+          }
+        } catch (error) {
+          onFailure();
+          controller.error(error);
+        }
+      },
+      cancel: (reason) => reader.cancel(reason),
+    });
+    return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+  }
+
   async function present(request: Request, record: PaymentRecord, reused: boolean): Promise<Response> {
     emit({ type: 'presented', intent: record.intent, presentation: record.presentations, reused });
-    const response = await send(request, record.headers);
+    const response = await sendPaid(request, record.headers);
     if (response.ok) {
+      let settled: PaymentRecord;
       try {
         const settle = await readSettle(response);
-        await update(record, { status: 'settled', ...(settle ? { settle } : {}) });
+        settled = await update(record, { status: 'settled', ...(settle ? { settle } : {}) });
         emit({ type: 'settled', intent: record.intent });
       } catch {
         // The resource arrived and was paid for. Failing to write that down must not throw it away. The record stays
         // `presented`; a later retry re-sends the same payment and, if the seller refuses it, the chain check reports it.
+        return response;
       }
-      return response;
+      const quietly = (work: Promise<unknown>) => {
+        const tracked = work.catch(() => {}).finally(() => background.delete(tracked));
+        background.add(tracked);
+      };
+      return watchBody(
+        response,
+        () => quietly(update(settled, stripped(settled))),
+        () => quietly(update(settled, { status: 'presented' })),
+      );
     }
     if (reused && options.resolver) {
       // A payment that was sent before and is refused now has either never settled or has settled and will not be
@@ -174,7 +285,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     explicit: boolean,
     previous: PaymentRecord | undefined,
   ): Promise<Response | 'conflict'> {
-    const first = await send(request, {});
+    const first = await sendUnpaid(request);
     if (first.status !== 402) return first;
 
     const text = await readCapped(first);
@@ -196,6 +307,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     emit({ type: 'signed', intent });
     const time = now();
     const record: PaymentRecord = {
+      schema: RECORD_SCHEMA,
       version: (previous?.version ?? 0) + 1,
       intent,
       explicit,
@@ -212,8 +324,13 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
       expiresAt: expiryOf(payload.payload, payload.accepted.maxTimeoutSeconds, time),
     };
 
+    // The seller chooses how long the signed payment lives. A stolen or lost one stays usable that long, so cap it.
+    if (record.expiresAt - time > maxValidityMs) {
+      throw new ValidityTooLongError(Math.round((record.expiresAt - time) / 1000), maxValidityMs);
+    }
+
     // The rule that makes everything else work: the signed payment is saved before it is sent.
-    const saved = await store.compareAndSet(intent, previous?.version ?? 0, record);
+    const saved = await cas(intent, previous?.version ?? 0, record);
     if (!saved.ok) {
       emit({ type: 'conflict', intent });
       return 'conflict'; // Someone else signed first. The unsent payment is dropped; nothing was charged.
@@ -226,7 +343,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     let sawConflict = false;
     for (let round = 0; round < 4; round++) {
       try {
-        let previous = await store.get(intent);
+        let previous = await load(intent);
         if (previous && sawConflict && previous.status === 'settled' && previous.updatedAt >= startedAt) {
           throw new PurchaseSettledElsewhereError(previous);
         }
@@ -248,6 +365,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
 
   const paidFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
+    request.signal.throwIfAborted(); // an already-cancelled call must not use up one of the saved payment's sends
     const headerKey = request.headers.get('Idempotency-Key') ?? undefined;
     const chosen = (await options.intentKey?.(request)) ?? headerKey;
     const derived = await deriveIntent(request);
@@ -264,7 +382,12 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
       inFlight.set(intent, running);
     }
     try {
-      return (await running).clone();
+      const response = await running;
+      const copy = response.clone();
+      // Every caller reads its own copy. Once they have all taken theirs (in this same turn), drop the retained
+      // original: left unread it would make the stream buffer everything and block a caller's cancel().
+      if (owner) setTimeout(() => void response.body?.cancel().catch(() => {}), 0);
+      return copy;
     } finally {
       if (owner) inFlight.delete(intent);
     }
@@ -276,7 +399,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
    */
   async function forget(intent: string): Promise<void> {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const record = await store.get(intent);
+      const record = await load(intent);
       if (!record || record.status === 'abandoned') return;
       try {
         await update(record, { status: 'abandoned' });
@@ -288,11 +411,40 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     throw new StoreConflictError(intent);
   }
 
-  return Object.assign(paidFetch, { forget, store });
+  /** Resolves when the bookkeeping that runs after a response was handed over has finished. Await it before exiting. */
+  async function idle(): Promise<void> {
+    while (background.size) await Promise.all([...background]);
+  }
+
+  return Object.assign(paidFetch, { forget, idle, store });
 }
 
 async function readCapped(response: Response): Promise<string> {
-  const text = await response.text();
-  if (text.length > MAX_PAYMENT_REQUIRED_BYTES) throw new Error('Payment requirements response is too large');
-  return text;
+  const tooLarge = () => new Error('Payment requirements response is too large');
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_PAYMENT_REQUIRED_BYTES) {
+    await response.body?.cancel().catch(() => {});
+    throw tooLarge();
+  }
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_PAYMENT_REQUIRED_BYTES) {
+      await reader.cancel().catch(() => {});
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
 }

@@ -61,12 +61,12 @@ export function evmAuthorizationResolver(options: EvmAuthorizationResolverOption
   }
 
   /** The transaction that emitted AuthorizationUsed for this authorization, or undefined when it cannot be found. */
-  async function findTransaction(url: string, asset: string, from: string, nonce: string): Promise<string | undefined> {
+  async function findTransaction(url: string, asset: string, from: string, nonce: string, at: string): Promise<string | undefined> {
     try {
-      const latest = BigInt((await rpc(url, 'eth_blockNumber', [])) as string);
+      const latest = at === 'latest' ? BigInt((await rpc(url, 'eth_blockNumber', [])) as string) : BigInt(at);
       const first = latest > BigInt(lookback) ? latest - BigInt(lookback) : 0n;
       const logs = (await rpc(url, 'eth_getLogs', [
-        { address: asset, fromBlock: '0x' + first.toString(16), toBlock: 'latest', topics: [AUTHORIZATION_USED, '0x' + pad32(from), '0x' + pad32(nonce)] },
+        { address: asset, fromBlock: '0x' + first.toString(16), toBlock: at, topics: [AUTHORIZATION_USED, '0x' + pad32(from), '0x' + pad32(nonce)] },
       ])) as Array<{ transactionHash?: unknown }>;
       const hash = logs[0]?.transactionHash;
       return typeof hash === 'string' ? hash : undefined;
@@ -77,25 +77,29 @@ export function evmAuthorizationResolver(options: EvmAuthorizationResolverOption
 
   return async (record: PaymentRecord): Promise<SettlementFinding> => {
     const accepted = record.payload.accepted;
-    const url = options.rpcUrls[accepted.network];
+    const url = Object.hasOwn(options.rpcUrls, accepted.network) ? options.rpcUrls[accepted.network] : undefined;
     const auth = authorizationOf(record.payload.payload);
     if (!url || !auth || typeof auth.from !== 'string' || typeof auth.nonce !== 'string') return { verdict: 'unknown' };
     if (!/^0x[0-9a-fA-F]{64}$/.test(auth.nonce) || !/^0x[0-9a-fA-F]{40}$/.test(auth.from)) return { verdict: 'unknown' };
 
     try {
-      const result = await rpc(url, 'eth_call', [{ to: accepted.asset, data: AUTHORIZATION_STATE + pad32(auth.from) + pad32(auth.nonce) }, 'latest']);
-      if (typeof result !== 'string') return { verdict: 'unknown' };
-      if (/^0x0*1$/.test(result)) {
-        const transaction = await findTransaction(url, accepted.asset, auth.from, auth.nonce);
+      // Read the state and the chain's clock at the SAME block, so a settlement mined in between cannot be missed.
+      const block = (await rpc(url, 'eth_getBlockByNumber', ['latest', false])) as { number?: unknown; timestamp?: unknown } | null;
+      const at = typeof block?.number === 'string' && /^0x[0-9a-f]+$/i.test(block.number) ? block.number : 'latest';
+      const chainTime = typeof block?.timestamp === 'string' ? Number(BigInt(block.timestamp)) : NaN;
+
+      const result = await rpc(url, 'eth_call', [{ to: accepted.asset, data: AUTHORIZATION_STATE + pad32(auth.from) + pad32(auth.nonce) }, at]);
+      // Exactly one 32-byte word. "0x" (no contract at that address, wrong chain, odd RPC) is NOT "never used".
+      if (typeof result !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(result)) return { verdict: 'unknown' };
+      if (/^0x0{63}1$/.test(result)) {
+        const transaction = await findTransaction(url, accepted.asset, auth.from, auth.nonce, at);
         return transaction ? { verdict: 'settled', transaction } : { verdict: 'settled' };
       }
-      if (/^0x0*$/.test(result)) {
+      if (/^0x0{64}$/.test(result)) {
         // "Not used" is only final once the chain itself has passed the deadline. The buyer's clock can be fast and an
-        // RPC node can lag, so compare against the latest block's own timestamp, not against our clock.
+        // RPC node can lag, so compare against the block's own timestamp, not against our clock.
         const validBefore = Number(auth.validBefore);
         if (!Number.isFinite(validBefore) || validBefore <= 0) return { verdict: 'unknown' };
-        const block = (await rpc(url, 'eth_getBlockByNumber', ['latest', false])) as { timestamp?: unknown } | null;
-        const chainTime = typeof block?.timestamp === 'string' ? Number(BigInt(block.timestamp)) : NaN;
         return chainTime >= validBefore ? { verdict: 'unsettled' } : { verdict: 'unknown' };
       }
       return { verdict: 'unknown' };

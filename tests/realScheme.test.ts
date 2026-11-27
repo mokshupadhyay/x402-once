@@ -80,9 +80,10 @@ describe('with the official EVM scheme', () => {
 
     const calls: { to: string; data: string }[] = [];
     const rpc = async (_url: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { params: [{ to: string; data: string }] };
-      calls.push(body.params[0]);
-      return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x' + '0'.repeat(63) + '1' }));
+      const body = JSON.parse(String(init?.body)) as { method: string; params: [{ to: string; data: string }] };
+      if (body.method === 'eth_getBlockByNumber') return new Response(JSON.stringify({ result: { number: '0x10', timestamp: '0x1' } }));
+      if (body.method === 'eth_call') calls.push(body.params[0]);
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result: body.method === 'eth_call' ? '0x' + '0'.repeat(63) + '1' : [] }));
     };
     const resolve = evmAuthorizationResolver({ rpcUrls: { 'eip155:84532': 'https://rpc.test' }, fetch: rpc as typeof fetch });
 
@@ -159,7 +160,7 @@ describe('with the official EVM scheme', () => {
         const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
         requests.push(body);
         if (body.method === 'eth_call') return new Response(JSON.stringify({ result: '0x' + '0'.repeat(63) + '1' }));
-        if (body.method === 'eth_blockNumber') return new Response(JSON.stringify({ result: '0x2710' }));
+        if (body.method === 'eth_getBlockByNumber') return new Response(JSON.stringify({ result: { number: '0x2710', timestamp: '0x1' } }));
         if (logsFail) return new Response(JSON.stringify({ error: { code: -32005, message: 'range too large' } }));
         return new Response(JSON.stringify({ result: [{ transactionHash: txHash }] }));
       }) as typeof fetch;
@@ -168,6 +169,7 @@ describe('with the official EVM scheme', () => {
     expect(await evmAuthorizationResolver({ rpcUrls, fetch: chain(false), lookbackBlocks: 100 })(record)).toEqual({ verdict: 'settled', transaction: txHash });
     const query = requests.find((r) => r.method === 'eth_getLogs')!.params[0] as { fromBlock: string; topics: string[]; address: string };
     expect(query.fromBlock).toBe('0x' + (10_000 - 100).toString(16));
+    expect((query as unknown as { toBlock: string }).toBlock).toBe('0x2710'); // the same block the state was read at
     expect(query.address).toBe(record.payload.accepted.asset);
     expect(query.topics[0]).toBe('0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5');
     expect(query.topics[1]).toBe('0x' + '0'.repeat(24) + account.address.slice(2).toLowerCase());
