@@ -1,6 +1,6 @@
 {
   "name": "x402-once",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pay once for each x402 purchase: a client wrapper that stores the signed payment before sending it and reuses it on retries, so a lost response or a timeout never becomes a second charge. Includes a fault-injection test kit.",
   "license": "MIT",
   "type": "module",

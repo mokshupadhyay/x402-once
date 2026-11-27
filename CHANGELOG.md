@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-11-27)
+- Documentation only: README gains a "Related work" section (x402 #4094 proposes the same fix in `@x402/fetch`), the facilitator failure range is corrected to 5 to 8 per 100, and results from a further 40-purchase Base Sepolia run are added.
+- First release through npm trusted publishing (staged), with provenance.
+
 ## 0.1.0 (2026-11-27)
 - `createPaidFetch`: save-before-send, reuse of the signed payment, expiry resolution, single flight.
 - `evmAuthorizationResolver`: asks the token contract (`authorizationState`) whether an EIP-3009 authorization was used.
