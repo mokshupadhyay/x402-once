@@ -15,39 +15,46 @@ jobs:
       matrix:
         node: [20, 22, 24]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Secret scan
+        run: node scripts/secret-scan.mjs
       - name: Property tests at high volume
         if: matrix.node == 24
         run: RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=600000
-      - name: Install the packed tarball in a clean project (ESM and CJS)
+      - name: Install the packed tarball in a clean project (ESM and CJS), then audit what a user gets
         run: |
           npm pack --pack-destination "$RUNNER_TEMP"
           mkdir "$RUNNER_TEMP/smoke" && cd "$RUNNER_TEMP/smoke"
           npm init -y >/dev/null
-          npm i "$RUNNER_TEMP"/x402-once-*.tgz @x402/core@2.32.0
+          npm i --ignore-scripts "$RUNNER_TEMP"/x402-once-*.tgz @x402/core@2.32.0 @x402/evm@2.32.0
           node --input-type=module -e "import('x402-once').then(m => { if (typeof m.createPaidFetch !== 'function') process.exit(1) })"
           node -e "const m = require('x402-once'); if (typeof m.createPaidFetch !== 'function') process.exit(1)"
           node --input-type=module -e "import('x402-once/node').then(m => { if (typeof m.FilePaymentStore !== 'function') process.exit(1) })"
-      - run: npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
+          npm audit signatures
 
   core-compat:
-    # The peer range is >=2.32.0 <3. Check the newest @x402 packages still typecheck and pass.
+    # The peer range is >=2.32.0 <3. Check the newest 2.x packages still typecheck and pass.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm i --no-save @x402/core@^2 @x402/evm@^2 @x402/fetch@^2
+      - run: npm ci --ignore-scripts
+      - run: npm i --no-save --ignore-scripts @x402/core@^2 @x402/evm@^2 @x402/fetch@^2
       - run: npm run typecheck
       - run: npm test

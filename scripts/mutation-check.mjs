@@ -140,7 +140,7 @@ const mutations = [
     id: 'M19',
     file: 'src/resolve.ts',
     claim: 'The chain says "never settled" only after its own clock passed the deadline',
-    find: 'return chainTime >= validBefore ? { verdict: \'unsettled\' } : { verdict: \'unknown\' };',
+    find: "return chainTime >= validBefore + margin ? { verdict: 'unsettled' } : { verdict: 'unknown' };",
     replace: "return { verdict: 'unsettled' };",
   },
   {
@@ -273,8 +273,8 @@ const mutations = [
     id: 'M38',
     file: 'src/fileStore.ts',
     claim: 'prune never deletes an open purchase',
-    find: "if (['settled', 'expired', 'abandoned'].includes(record.status) && record.updatedAt < cutoff) {",
-    replace: 'if (record.updatedAt < cutoff) {',
+    find: "if (prunable && ['settled', 'expired', 'abandoned'].includes(record.status) && record.updatedAt < cutoff) {",
+    replace: 'if (prunable && record.updatedAt < cutoff) {',
   },
   {
     id: 'M39',
@@ -290,6 +290,146 @@ const mutations = [
     find: 'await unlink(temporary).catch(() => {}); // a full disk must not leave a half-written signed record behind',
     replace: '// no cleanup',
   },
+  {
+    id: 'M41',
+    file: 'src/paidFetch.ts',
+    claim: "The signed payment is checked against the seller's offer before it is saved or sent",
+    find: 'checkPayment(payload, paymentRequired, options.limits);',
+    replace: 'void 0;',
+  },
+  {
+    id: 'M42',
+    file: 'src/validate.ts',
+    claim: 'The signed payee must equal the offered payee',
+    find: "if (!sameText(authorization['to'], accepted['payTo']))",
+    replace: 'if (false)',
+  },
+  {
+    id: 'M43',
+    file: 'src/validate.ts',
+    claim: 'The signed amount must equal the offered amount',
+    find: "if (!isAtomic(authorization['value']) || authorization['value'] !== String(accepted['amount'])) {",
+    replace: 'if (false) {',
+  },
+  {
+    id: 'M44',
+    file: 'src/validate.ts',
+    claim: 'The payment must name an offer the seller actually made',
+    find: 'if (!offered) throw',
+    replace: 'if (false) throw',
+  },
+  {
+    id: 'M45',
+    file: 'src/validate.ts',
+    claim: 'Your payee limit is enforced',
+    find: 'if (limits?.payTo && ',
+    replace: 'if (false && ',
+  },
+  {
+    id: 'M46',
+    file: 'src/validate.ts',
+    claim: 'Your amount limit is enforced',
+    find: "BigInt(String(accepted['amount'])) > BigInt(limits.maxAmount)",
+    replace: 'false',
+  },
+  {
+    id: 'M47',
+    file: 'src/validate.ts',
+    claim: 'Your network limit is enforced',
+    find: 'if (limits?.networks && ',
+    replace: 'if (false && ',
+  },
+  {
+    id: 'M48',
+    file: 'src/validate.ts',
+    claim: 'Your asset limit is enforced',
+    find: 'if (limits?.assets && ',
+    replace: 'if (false && ',
+  },
+  {
+    id: 'M49',
+    file: 'src/validate.ts',
+    claim: 'Saved headers cannot carry line breaks or control characters',
+    find: '|| /[\\r\\n\\0]/.test(header as string)',
+    replace: '',
+  },
+  {
+    id: 'M50',
+    file: 'src/paidFetch.ts',
+    claim: 'The signed payment is never sent over plain http to a remote host',
+    find: "if (!(parsed.protocol === 'http:' && local)) throw new InsecureTransportError(url);",
+    replace: '',
+  },
+  {
+    id: 'M51',
+    file: 'src/paidFetch.ts',
+    claim: 'The paid request tells caches not to keep it',
+    find: "if (!base.headers.has('cache-control')) base.headers.set('Cache-Control', 'no-store');",
+    replace: '',
+  },
+  {
+    id: 'M52',
+    file: 'src/resolve.ts',
+    claim: 'An RPC on the wrong chain is not believed',
+    find: 'BigInt(chainId) !== BigInt(wanted)',
+    replace: 'false',
+  },
+  {
+    id: 'M53',
+    file: 'src/resolve.ts',
+    claim: '"Never settled" waits for a margin past the deadline',
+    find: 'chainTime >= validBefore + margin',
+    replace: 'chainTime >= validBefore',
+  },
+  {
+    id: 'M54',
+    file: 'src/resolve.ts',
+    claim: '"Never settled" needs every provider to agree',
+    find: "answers.every((a) => a.verdict === 'unsettled')",
+    replace: "answers.some((a) => a.verdict === 'unsettled')",
+  },
+  {
+    id: 'M55',
+    file: 'src/resolve.ts',
+    claim: 'A plain-http RPC URL is refused',
+    find: "if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && local)) {",
+    replace: 'if (false) {',
+  },
+  {
+    id: 'M56',
+    file: 'src/resolve.ts',
+    claim: 'An RPC cannot redirect the resolver elsewhere',
+    find: "redirect: 'error',",
+    replace: '',
+  },
+  {
+    id: 'M57',
+    file: 'src/resolve.ts',
+    claim: 'State and chain clock are read at the same block',
+    find: 'data: AUTHORIZATION_STATE + pad32(auth.from) + pad32(auth.nonce) }, at]',
+    replace: "data: AUTHORIZATION_STATE + pad32(auth.from) + pad32(auth.nonce) }, 'latest']",
+  },
+  {
+    id: 'M58',
+    file: 'src/fileStore.ts',
+    claim: 'A symlink planted in place of a record file is refused',
+    find: 'if (!info.isFile()) throw',
+    replace: 'if (false) throw',
+  },
+  {
+    id: 'M59',
+    file: 'src/fileStore.ts',
+    claim: 'prune keeps records of keys the caller chose',
+    find: 'const prunable = !record.explicit || options.includeExplicit === true;',
+    replace: 'const prunable = true;',
+  },
+  {
+    id: 'M60',
+    file: 'src/paidFetch.ts',
+    claim: 'Forgetting a purchase removes the signed payment from its record',
+    find: "await update(record, { status: 'abandoned', ...stripped(record) });",
+    replace: "await update(record, { status: 'abandoned' });",
+  },
 ];
 
 const dir = mkdtempSync(join(tmpdir(), 'x402-once-mutation-'));
@@ -300,7 +440,11 @@ function runTests() {
   spawnSync('npx', ['vitest', '--run', '--reporter=json', `--outputFile=${out}`], { encoding: 'utf8', env: { ...process.env, RUNS: '1500' } });
   const json = JSON.parse(readFileSync(out, 'utf8'));
   const failed = [];
-  for (const file of json.testResults) for (const t of file.assertionResults) if (t.status === 'failed') failed.push(t.fullName);
+  for (const file of json.testResults) {
+    for (const t of file.assertionResults) if (t.status === 'failed') failed.push(t.fullName);
+    // A file that cannot even load (a syntax error from the break) is also a failure the tests would show.
+    if (file.status === 'failed' && !file.assertionResults.some((t) => t.status === 'failed')) failed.push(`(${file.name.split('/').pop()} failed to load)`);
+  }
   return failed;
 }
 
@@ -310,7 +454,7 @@ if (baseline.length) {
   process.exit(1);
 }
 
-for (const m of mutations) {
+for (const m of mutations.filter((x) => !process.env.ONLY || process.env.ONLY.split(',').includes(x.id))) {
   const backup = join(dir, m.id + '.bak');
   copyFileSync(m.file, backup);
   const original = readFileSync(m.file, 'utf8');
@@ -343,6 +487,6 @@ const md = [
   `Caught: ${rows.filter((r) => r.failed.length).length} of ${rows.length}.`,
   '',
 ].join('\n');
-writeFileSync('docs/MUTATION_EVIDENCE.md', md);
+if (!process.env.ONLY) writeFileSync('docs/MUTATION_EVIDENCE.md', md);
 console.log(md.split('\n').slice(-3).join('\n'));
 if (dirty.trim() && false) console.log(dirty);

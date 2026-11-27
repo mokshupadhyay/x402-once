@@ -58,6 +58,8 @@ export class FilePaymentStore implements PaymentStore {
   private async read(intent: string): Promise<PaymentRecord | undefined> {
     let text: string;
     try {
+      const info = await lstat(this.path(intent, '.json'));
+      if (!info.isFile()) throw new Error(`The saved payment for "${intent}" is not a regular file (${this.path(intent, '.json')}). Refusing to read it.`);
       text = await readFile(this.path(intent, '.json'), 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
@@ -96,9 +98,9 @@ export class FilePaymentStore implements PaymentStore {
 
   /**
    * Deletes records of finished purchases (settled, expired, abandoned) not touched for `olderThanMs`, and any
-   * leftover temporary files. Open purchases (`presented`, `undelivered`) are never deleted. Returns how many were removed.
+   * leftover temporary files. Purchases with a key you chose are kept unless `includeExplicit` is set. Open purchases (`presented`, `undelivered`) are never deleted. Returns how many were removed.
    */
-  async prune(options: { olderThanMs: number }): Promise<number> {
+  async prune(options: { olderThanMs: number; includeExplicit?: boolean }): Promise<number> {
     await this.ensureDirectory();
     const cutoff = Date.now() - options.olderThanMs;
     let removed = 0;
@@ -112,7 +114,9 @@ export class FilePaymentStore implements PaymentStore {
       if (!name.endsWith('.json')) continue;
       try {
         const record = JSON.parse(await readFile(path, 'utf8')) as PaymentRecord;
-        if (['settled', 'expired', 'abandoned'].includes(record.status) && record.updatedAt < cutoff) {
+        // A record for a key the caller chose is what makes "this exact purchase, ever" true, so it is kept unless asked.
+        const prunable = !record.explicit || options.includeExplicit === true;
+        if (prunable && ['settled', 'expired', 'abandoned'].includes(record.status) && record.updatedAt < cutoff) {
           await rm(path, { force: true });
           removed++;
         }

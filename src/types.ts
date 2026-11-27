@@ -98,6 +98,13 @@ export interface PaidFetchOptions {
   resolver?: SettlementResolver;
   /** Longest to wait for the resolver before treating it as "cannot tell". Default 15000 ms. */
   resolverTimeoutMs?: number;
+  /**
+   * Your own limits, checked against every signed payment before it is saved or sent, on top of whatever your
+   * `x402Client` enforces. Strongly recommended: the seller chooses the payee, asset and price.
+   */
+  limits?: PaymentLimits;
+  /** Allow sending the signed payment over plain http. Off by default; only localhost is exempt. For local testing. */
+  allowInsecureHttp?: boolean;
   /** Refuse a signed payment that stays valid longer than this (the seller picks it), in ms. Default 3600000 (1 hour). */
   maxValidityMs?: number;
   /** Give up on one request to the seller after this long, in ms, so a hung seller cannot hold a purchase forever. Default 60000. 0 turns it off. */
@@ -119,4 +126,16 @@ export interface PaidFetch {
   idle(): Promise<void>;
   /** The store in use, for inspecting saved payments. */
   readonly store: PaymentStore;
+}
+
+/** What you are willing to pay. Anything outside it is refused with `PaymentMismatchError` and nothing is sent. */
+export interface PaymentLimits {
+  /** CAIP-2 networks, for example `['eip155:8453']`. */
+  networks?: string[];
+  /** Token contract addresses (case-insensitive). */
+  assets?: string[];
+  /** Payee addresses (case-insensitive). */
+  payTo?: string[];
+  /** Largest amount for one purchase, in the token's smallest unit, as a decimal string. */
+  maxAmount?: string;
 }

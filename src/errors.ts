@@ -100,3 +100,19 @@ export class UnsafeRedirectError extends Error {
     this.name = 'UnsafeRedirectError';
   }
 }
+
+/** What the signer produced does not match what the seller asked for (payee, amount, asset, network or deadline). Nothing was saved or sent. */
+export class PaymentMismatchError extends Error {
+  constructor(reason: string) {
+    super(`The signed payment does not match the seller's requirements (${reason}). It was not saved or sent.`);
+    this.name = 'PaymentMismatchError';
+  }
+}
+
+/** The paid request would go over plain http. The signed payment is a bearer instrument and must not travel in clear. */
+export class InsecureTransportError extends Error {
+  constructor(url: string) {
+    super(`Refusing to send a signed payment to ${url} over plain http. Use https, or set allowInsecureHttp for local testing.`);
+    this.name = 'InsecureTransportError';
+  }
+}

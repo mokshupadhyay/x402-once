@@ -53,3 +53,35 @@ export async function attempt(fetchFn: (input: RequestInfo | URL, init?: Request
     throw error;
   }
 }
+
+/** A mock JSON-RPC node for resolver tests. Answers per method, like a real one. */
+export function chainFetch(options: {
+  chainId?: string;
+  call?: unknown;
+  timestamp?: string | undefined;
+  number?: string;
+  logs?: unknown;
+  httpStatus?: number;
+  bodyPrefix?: string;
+  calls?: { method: string; params: unknown[]; init?: RequestInit }[];
+} = {}) {
+  const json = (result: unknown) => new Response((options.bodyPrefix ?? '') + JSON.stringify({ jsonrpc: '2.0', id: 1, result }), { status: options.httpStatus ?? 200 });
+  return (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
+    options.calls?.push({ ...body, ...(init ? { init } : {}) });
+    switch (body.method) {
+      case 'eth_chainId':
+        return json(options.chainId ?? '0x14a34');
+      case 'eth_getBlockByNumber':
+        return json(options.timestamp === undefined ? null : { number: options.number ?? '0x10', timestamp: options.timestamp });
+      case 'eth_call':
+        return json(options.call ?? '0x' + '0'.repeat(64));
+      case 'eth_blockNumber':
+        return json(options.number ?? '0x10');
+      case 'eth_getLogs':
+        return options.logs === 'fail' ? new Response(JSON.stringify({ error: { code: -32005 } })) : json(options.logs ?? []);
+      default:
+        return json(null);
+    }
+  }) as typeof fetch;
+}

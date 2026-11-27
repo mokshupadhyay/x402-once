@@ -6,7 +6,9 @@ export { evmAuthorizationResolver, expiryOf } from './resolve.js';
 export type { EvmAuthorizationResolverOptions } from './resolve.js';
 export {
   AlreadySettledError,
+  InsecureTransportError,
   InvalidRecordError,
+  PaymentMismatchError,
   PurchaseSettledElsewhereError,
   SettledWithoutDeliveryError,
   StoreConflictError,
@@ -20,6 +22,7 @@ export type {
   PaidFetch,
   PaidFetchEvent,
   PaidFetchOptions,
+  PaymentLimits,
   PaymentRecord,
   PaymentStatus,
   PaymentStore,

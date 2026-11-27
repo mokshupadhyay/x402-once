@@ -1,6 +1,7 @@
 import type { PaymentRequired } from '@x402/core/types';
 import {
   AlreadySettledError,
+  InsecureTransportError,
   PurchaseSettledElsewhereError,
   SettledWithoutDeliveryError,
   StaleRecordError,
@@ -13,7 +14,7 @@ import {
 import { deriveIntent } from './intent.js';
 import { expiryOf } from './resolve.js';
 import { MemoryPaymentStore } from './store.js';
-import { RECORD_SCHEMA, validateRecord } from './validate.js';
+import { checkPayment, RECORD_SCHEMA, validateRecord } from './validate.js';
 import type { PaidFetch, PaidFetchOptions, PaymentRecord, PaymentStore, SettlementFinding, X402HttpClientLike } from './types.js';
 
 const MAX_PAYMENT_REQUIRED_BYTES = 64 * 1024;
@@ -70,6 +71,13 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     return new Request(request, { signal: AbortSignal.any([request.signal, AbortSignal.timeout(requestTimeoutMs)]) });
   }
 
+  function assertSecure(url: string): void {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:' || options.allowInsecureHttp) return;
+    const local = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]' || parsed.hostname.endsWith('.localhost');
+    if (!(parsed.protocol === 'http:' && local)) throw new InsecureTransportError(url);
+  }
+
   /** The first, unpaid request. Nothing secret is in it, so ordinary redirect handling is fine. */
   async function sendUnpaid(request: Request): Promise<Response> {
     return doFetch(limited(request.clone()));
@@ -81,8 +89,11 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
    * same-origin GET/HEAD hops are followed with the header re-attached; anything else stops with an error.
    */
   async function sendPaid(request: Request, headers: Record<string, string>): Promise<Response> {
+    assertSecure(request.url);
     const base = request.clone();
     for (const [name, value] of Object.entries(headers)) base.headers.set(name, value);
+    // The request carries a bearer payment: tell any cache or proxy on the way not to keep or share the exchange.
+    if (!base.headers.has('cache-control')) base.headers.set('Cache-Control', 'no-store');
     let current = new Request(base, { redirect: 'manual' });
     for (let hop = 0; hop <= 3; hop++) {
       const response = await doFetch(limited(current));
@@ -102,6 +113,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
       if (!target || target.origin !== new URL(from).origin || (method !== 'GET' && method !== 'HEAD')) {
         throw new UnsafeRedirectError(from, target?.href ?? '(unreadable location)');
       }
+      assertSecure(target.href);
       current = new Request(target.href, { method, headers: base.headers, redirect: 'manual', signal: request.signal });
     }
     throw new UnsafeRedirectError(current.url, '(too many redirects)');
@@ -271,7 +283,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
       throw new SettledWithoutDeliveryError(undelivered);
     }
     if (verdict === 'unsettled') {
-      return { fresh: await update(record, { status: 'expired' }) };
+      return { fresh: await update(record, { status: 'expired', ...stripped(record) }) };
     }
     throw new UnresolvedPaymentError(
       record,
@@ -305,6 +317,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
 
     const payload = await options.client.createPaymentPayload(paymentRequired);
     emit({ type: 'signed', intent });
+    checkPayment(payload, paymentRequired, options.limits); // before it is saved or sent
     const time = now();
     const record: PaymentRecord = {
       schema: RECORD_SCHEMA,
@@ -323,6 +336,9 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
       },
       expiresAt: expiryOf(payload.payload, payload.accepted.maxTimeoutSeconds, time),
     };
+
+    // Whatever the client library handed back must be a well-formed record: allowed headers only, real numbers.
+    validateRecord(intent, record);
 
     // The seller chooses how long the signed payment lives. A stolen or lost one stays usable that long, so cap it.
     if (record.expiresAt - time > maxValidityMs) {
@@ -402,7 +418,7 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
       const record = await load(intent);
       if (!record || record.status === 'abandoned') return;
       try {
-        await update(record, { status: 'abandoned' });
+        await update(record, { status: 'abandoned', ...stripped(record) });
         return;
       } catch (error) {
         if (!(error instanceof StaleRecordError)) throw error;

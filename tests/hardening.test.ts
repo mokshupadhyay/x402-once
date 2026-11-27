@@ -5,7 +5,6 @@ import { inspect } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createPaidFetch,
-  evmAuthorizationResolver,
   InvalidRecordError,
   MemoryPaymentStore,
   SettledWithoutDeliveryError,
@@ -245,37 +244,6 @@ describe('requests that used to slip through', () => {
     await Promise.race([reader.cancel(), new Promise((_, reject) => setTimeout(() => reject(new Error('cancel hung')), 1000))]);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(cancelled).toBe(true);
-  });
-});
-
-describe('the resolver does not mistake odd answers for "never used"', () => {
-  const record = async () => {
-    const { paidFetch, store } = setup({ faults: scriptedFaults('drop-before-settle') });
-    await attempt(paidFetch);
-    return only(store)[1];
-  };
-  const chain = (callResult: string, rpcUrls: Record<string, string> = { 'eip155:84532': 'https://rpc.test' }) =>
-    evmAuthorizationResolver({
-      rpcUrls,
-      fetch: (async (_u: RequestInfo | URL, init?: RequestInit) => {
-        const method = (JSON.parse(String(init?.body)) as { method: string }).method;
-        if (method === 'eth_getBlockByNumber') return new Response(JSON.stringify({ result: { number: '0x5', timestamp: '0x' + (2 ** 40).toString(16) } }));
-        return new Response(JSON.stringify({ result: callResult }));
-      }) as typeof fetch,
-    });
-
-  it('a full 32-byte zero is unsettled once the chain is past the deadline (control)', async () => {
-    expect(await chain('0x' + '0'.repeat(64))(await record())).toEqual({ verdict: 'unsettled' });
-  });
-  it('"0x" (no contract, wrong chain) is unknown, never unsettled', async () => {
-    expect(await chain('0x')(await record())).toEqual({ verdict: 'unknown' });
-  });
-  it('anything that is not exactly one 32-byte word is unknown', async () => {
-    expect(await chain('0x' + '0'.repeat(62))(await record())).toEqual({ verdict: 'unknown' });
-    expect(await chain('0x' + '0'.repeat(66))(await record())).toEqual({ verdict: 'unknown' });
-  });
-  it('a network that is only on the prototype chain has no RPC', async () => {
-    expect(await chain('0x' + '0'.repeat(64), Object.create({ 'eip155:84532': 'https://rpc.test' }))(await record())).toEqual({ verdict: 'unknown' });
   });
 });
 

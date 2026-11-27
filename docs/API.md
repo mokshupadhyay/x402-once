@@ -29,6 +29,8 @@ Needs Node 20 or newer (Bun and Deno also work). Peer dependency: `@x402/core` 2
 | `intentKey` | none | `(request) => string \| undefined`. Choose the purchase key yourself. Falls back to an `Idempotency-Key` header, then to a hash of method, URL and body. An empty string counts as no key. A chosen key is combined with the request's hash, so the same key on a different URL or body is a different purchase. |
 | `resolver` | none | Decides whether an old payment settled. Without one the wrapper fails closed after the deadline. Use `evmAuthorizationResolver`. |
 | `resolverTimeoutMs` | 15000 | A resolver that takes longer counts as "cannot tell". |
+| `limits` | none | `{ networks?, assets?, payTo?, maxAmount? }`. A signed payment outside these is refused with `PaymentMismatchError` before it is saved or sent. Strongly recommended. |
+| `allowInsecureHttp` | false | Allow sending the signed payment over plain http. Only localhost is allowed without it. |
 | `maxValidityMs` | 3600000 | Refuse a signed payment that stays valid longer than this (the seller picks it). Nothing is saved or sent. |
 | `requestTimeoutMs` | 60000 | Give up on one request to the seller after this long. `0` turns it off. The payment stays saved, so a retry re-sends it. |
 | `maxPresentations` | 5 | Most times one signed payment may be sent. |
@@ -58,6 +60,8 @@ Every error with a `record` carries it as a **non-enumerable** property, so logg
 | `TooManyPresentationsError` | The same signed payment was sent `maxPresentations` times. | Wait for the deadline; the next call checks the chain. |
 | `InvalidRecordError` | A saved record is damaged, edited or from a newer version. | Inspect the store; fix or remove the record. |
 | `ValidityTooLongError` | The seller asked for a payment valid longer than `maxValidityMs`. | Raise the limit only if you trust the seller. |
+| `PaymentMismatchError` | The signed payment does not match the seller's offer or your `limits`. Nothing was saved or sent. | Check the signer and your limits; treat an unexpected mismatch as a security event. |
+| `InsecureTransportError` | The paid request would go over plain http. | Use https. |
 | `UnsafeRedirectError` | The paid request was redirected where the payment must not go. The payment stays saved. | Call the seller's final URL directly. |
 | `StoreConflictError` | The store kept changing underneath this call. | Retry. |
 
@@ -66,7 +70,7 @@ Every error with a `record` carries it as a **non-enumerable** property, so logg
 `PaymentStore` has `get`, `compareAndSet(intent, expectedVersion, next)` (must answer exactly `{ ok: true }` or `{ ok: false, current }`) and optional `delete`. A store shared by processes must make `compareAndSet` atomic.
 
 - `new MemoryPaymentStore({ maxFinishedRecords = 1000 })`: in process. Keeps open purchases (`presented`, `undelivered`) always; drops the oldest finished ones past the limit.
-- `new FilePaymentStore({ directory, lockTimeoutMs = 5000, staleLockMs = 15000 })` from `x402-once/node`: one JSON file per purchase, flushed to disk before it is visible, per-purchase lock. Refuses a directory that is a symlink, owned by someone else or writable by group or others. `await store.prune({ olderThanMs })` deletes finished purchases not touched for that long and stale temporary files; it never deletes open purchases or unreadable files. Not for several machines sharing a drive.
+- `new FilePaymentStore({ directory, lockTimeoutMs = 5000, staleLockMs = 15000 })` from `x402-once/node`: one JSON file per purchase, flushed to disk before it is visible, per-purchase lock. Refuses a directory that is a symlink, owned by someone else or writable by group or others. `await store.prune({ olderThanMs, includeExplicit? })` deletes finished purchases not touched for that long and stale temporary files; it never deletes open purchases or unreadable files, and keeps records for keys you chose (which is what makes "this exact purchase, ever" true) unless `includeExplicit` is set. Not for several machines sharing a drive.
 
 Records carry `schema: 1`. A record with a newer schema is refused, never guessed at.
 
@@ -74,7 +78,7 @@ Records carry `schema: 1`. A record with a newer schema is refused, never guesse
 
 `resolver(record)` returns `'settled' | 'unsettled' | 'unknown'` or `{ verdict, transaction? }`. A throw, a timeout or anything else counts as `unknown`.
 
-`evmAuthorizationResolver({ rpcUrls, fetch?, lookbackBlocks = 5000 })` reads the token contract's `authorizationState` and the latest block's timestamp from the **same block**. It answers `settled` when the authorization was used (and finds the transaction in the last `lookbackBlocks` blocks when it can), `unsettled` only when the chain's own clock is past `validBefore`, and `unknown` for everything else: an RPC error, a reply that is not exactly one 32-byte word, a network without an RPC URL.
+`evmAuthorizationResolver({ rpcUrls, fetch?, lookbackBlocks = 5000, unsettledMarginSeconds = 60, blockTag = 'latest', requestTimeoutMs = 10000 })`. `rpcUrls[network]` is a URL or an array of URLs (https; plain http only for localhost). "Settled" is believed from any one provider; "never settled" needs **every** provider to agree, so one lying or lagging node cannot cause a second payment. Each provider must be on the chain the seller named (`eth_chainId`). It reads the token contract's `authorizationState` and the latest block's timestamp from the **same block**. It answers `settled` when the authorization was used (and finds the transaction in the last `lookbackBlocks` blocks when it can), `unsettled` only when the chain's own clock is at least `unsettledMarginSeconds` past `validBefore`, and `unknown` for everything else: an RPC error, a reply that is not exactly one 32-byte word, a network without an RPC URL.
 
 ## Testing kit (`x402-once/testing`)
 

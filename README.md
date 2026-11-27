@@ -2,12 +2,12 @@
 
 Pay once for each [x402](https://github.com/x402-foundation/x402) purchase, even when the network lies.
 
-If a response is lost after the seller settled, the stock x402 client signs a second payment with a new nonce, and the seller can settle that one too. `x402-once` saves the signed payment before sending it and sends the same payment again on a retry, so a retry can never become a second charge.
+If a response is lost after the seller settled, the stock x402 client signs a second payment with a new nonce, and the seller can settle that one too. `x402-once` saves the signed payment before sending it and sends the same payment again on a retry, so a retry does not become a second charge. That holds under the conditions listed in [What is and is not proven](#what-is-and-is-not-proven) and [the threat model](docs/OPERATIONS.md#threat-model): a client that has not been tampered with, a store that keeps the record, and an RPC you trust to say when a payment can no longer settle.
 
 - **One install.** It wraps the `x402Client` you already have. No queue library, no second dependency.
 - **Non-custodial.** Your client signs. This package never sees a key.
 - **Fails closed.** If it cannot tell whether an old payment settled, it signs nothing and says so.
-- **Tested against the bug.** Random faults, clock jumps and retries never charge a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 40 of 40 hand-picked deliberate breaks of the source are caught by the tests (these are the author's own tests and mutations, not an outside audit).
+- **Tested against the bug.** In the simulated and benchmark tests, random faults, clock jumps and retries never charged a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 60 of 60 hand-picked deliberate breaks of the source are caught by the tests (these are the author's own tests and mutations, not an outside audit).
 
 > **Status: 0.x, not published yet.** Minor versions may change the API. Evidence comes from a simulated seller (unit and property tests) and from the official seller and facilitator code on a local chain and on Base Sepolia, with the lost responses injected by a proxy in front of the seller. See [What is and is not proven](#what-is-and-is-not-proven).
 
@@ -100,7 +100,7 @@ A corrupt record file is an error, never "nothing was paid". It does not work ac
 
 ### Custom resolvers
 
-`resolver` may return `'settled' | 'unsettled' | 'unknown'`, or `{ verdict, transaction? }`. The transaction, when you can supply it, ends up in the error and the saved record. Anything else, or a throw, counts as `unknown`. `evmAuthorizationResolver` returns the object form; it answers `unsettled` only when the latest block's own timestamp is past the authorization's `validBefore` (your clock and a lagging RPC node are not trusted for that), and it looks up the transaction in the last `lookbackBlocks` (default 5000) blocks and still answers if the RPC refuses the range.
+`resolver` may return `'settled' | 'unsettled' | 'unknown'`, or `{ verdict, transaction? }`. The transaction, when you can supply it, ends up in the error and the saved record. Anything else, or a throw, counts as `unknown`. `evmAuthorizationResolver` returns the object form; it answers `unsettled` only when the latest block's own timestamp is past the authorization's `validBefore` (it compares the chain's own clock plus a 60-second margin, not yours; the RPC itself is trusted, so give it several providers and it needs all of them to agree), and it looks up the transaction in the last `lookbackBlocks` (default 5000) blocks and still answers if the RPC refuses the range.
 
 ## Test your own client
 
@@ -118,7 +118,7 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 
 ## What is and is not proven
 
-**Proven (94 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
+**Proven (130 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
 - No purchase is paid twice under random faults, clock jumps and retries. The identical test finds double charges in the stock `@x402/fetch` wrapper.
 - The deadline is read from the real signed EIP-3009 authorization (checked with the official `@x402/evm` scheme and a throwaway key, no network).
 - The property tests found a real bug in the first design (a payment that settled but was never delivered could be bought again). It is fixed and has a regression test.
@@ -164,6 +164,10 @@ A saved record contains a **signed payment authorization**. Until its `validBefo
 - Once a purchase is delivered, the record keeps only what is needed to recognise it; the signed payload is not kept.
 - Purge old records (see [docs/OPERATIONS.md](docs/OPERATIONS.md)).
 - The package never sees your key: your `x402Client` signs.
+- **The payment is a bearer instrument.** Anyone who sees the `PAYMENT-SIGNATURE` header before it expires can submit it to the chain themselves. They cannot redirect the money (the payee and amount are signed), but the seller's facilitator would then find the payment already used and the buyer would be charged without delivery. So: only https (this package refuses plain http except localhost), no redirects to another origin, `Cache-Control: no-store` on the paid request. Sellers should answer paid requests with `Cache-Control: private, no-store` and not log the header.
+- **Set limits.** The seller chooses the payee, token and price. Pass `limits: { networks, assets, payTo, maxAmount }` so a payment outside what you intended is refused before it is saved or sent. This is in addition to the spend controls of your `x402Client` (by default, only known tokens and a $1 cap per payment).
+- **Before anything is sent**, the signed payment is checked against the seller's offer (payee, amount, token, network, nonce, payer, validity window), so a buggy or hostile signer, hook or dependency cannot get a different payment saved or sent. This check covers EIP-3009 (`exact`) payments. Permit2 payments are not inspected and have no resolver, so they fail closed after the deadline and need `forget`.
+- **A payer can cancel an authorization on chain** (`cancelAuthorization`). The resolver then reports `settled` with no transaction, because the nonce is used. That is a false "settled": it blocks a retry, it never causes a payment.
 
 ## Documentation
 

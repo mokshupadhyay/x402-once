@@ -1,0 +1,29 @@
+name: release
+# Publishes when a version tag is pushed. Uses npm trusted publishing (OIDC): there is no npm token in this repository.
+# One-time setup on npmjs.com: add this repository, this workflow file and the environment below as a Trusted Publisher.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-release # set a required reviewer on this environment in the repository settings
+    permissions:
+      contents: read
+      id-token: write # trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck && npm test && npm run build
+      - run: node scripts/secret-scan.mjs
+      - run: npm audit signatures
+      - run: npm publish --provenance --access public

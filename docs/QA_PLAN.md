@@ -47,7 +47,7 @@ Written as a QA lead would before a first public release. Status is what has act
 
 - Property test: random fault sequences, clock jumps, retries; no purchase paid twice (30,000 runs pass; CI repeats it).
 - Differential test: 400 random runs, 2 to 3 wrappers sharing one store and seller; no violation.
-- Mutation check: 40 hand-picked deliberate breaks of the source; the tests must fail for each (see MUTATION_EVIDENCE.md).
+- Mutation check: 60 hand-picked deliberate breaks of the source; the tests must fail for each (see MUTATION_EVIDENCE.md).
 - Real network: Base Sepolia benchmark, 2 runs of 20 purchases, public facilitator. **Open**: 100+ purchases over several seeds, and a seller the author does not control.
 
 ## 5. Security
