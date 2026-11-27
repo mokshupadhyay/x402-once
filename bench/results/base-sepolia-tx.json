@@ -1,0 +1,342 @@
+{
+  "when": "2026-11-27T08:12:25.560Z",
+  "environment": "Base Sepolia (84532), public x402.org facilitator, real USDC",
+  "network": "eip155:84532",
+  "purchases": 40,
+  "faultRate": 0.3,
+  "retries": 2,
+  "seed": "bench-3",
+  "amountAtomic": "1000",
+  "results": [
+    {
+      "scenario": "no-faults",
+      "title": "No faults (sanity check)",
+      "client": "stock @x402/fetch",
+      "purchases": 40,
+      "delivered": 37,
+      "itemsPaidFor": 37,
+      "transfersOnChain": 37,
+      "movedUsdc": "0.037",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 0,
+      "toldItWasPaid": 0,
+      "toldWithTransaction": 0,
+      "sellerReplays": 0,
+      "rejections": [
+        {
+          "url": "/item/9",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a34834356bb830f4240836acfc08301526794036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093a915121d16441c41fed49b0b96d34d208be0f674fca7658d44e31dd96424e7a6d21000000000000000000000000000000000000000000000000000000000000001b78d711d03278199bd688c0cac26edc4eecaa368163e5f6f9b25ee75cd43686012f117b6dbfdd3f316e3a1b9a470f98b59cf3cc36a172ee51b3726500093e2b6bc080a0eada33cb16a7f76fe911aebdddd300c33a1ecc0247a87d64a9558f68b1786f39a079ad6d4e8b9de9c138712e0e3f38e7d57b88aaf4df2ddeae1181c5b9ec609b86\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093a915121d16441c41fed49b0b96d34d208be0f674fca7658d44e31dd96424e7a6d21000000000000000000000000000000000000000000000000000000000000001b78d711d03278199bd688c0cac26edc4eecaa368163e5f6f9b25ee75cd43686012f117b6dbfdd3f316e3a1b9a470f98b59cf3cc36a172ee51b3726500093e2b6b\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795766929, 0x5121d16441c41fed49b0b96d34d208be0f674fca7658d44e31dd96424e7a6d21, 27, 0x78d711d03278199bd688c0cac26edc4eecaa368163e5f6f9b25ee75cd4368601, 0x2f117b6dbfdd3f316e3a1b9a470f98b59cf3cc36a172ee51b3726500093e2b6b)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/16",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a34834356c5830f4240836acfc08301527b94036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093a9807d2d2c82946aca4e72d48d6cca8d60914f45febdb783afbd1dfe2ff6b05ce1a000000000000000000000000000000000000000000000000000000000000001ca698b5babe466c565348f6740ef1ccb60371143d5ccc99e84cd2246c43c350827b8acc652630c57f86f82b1c1f9dfc5570df41e000e1775b5ca50f38675bda3dc001a01d8392c257f3aeb41e536ed06fc276ac1e551d813fa8ff7751480e7c063448e5a04dedbbf21d856ecb32180ec7612f159cd4f428340a69fed3e778f3824c44c7cb\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093a9807d2d2c82946aca4e72d48d6cca8d60914f45febdb783afbd1dfe2ff6b05ce1a000000000000000000000000000000000000000000000000000000000000001ca698b5babe466c565348f6740ef1ccb60371143d5ccc99e84cd2246c43c350827b8acc652630c57f86f82b1c1f9dfc5570df41e000e1775b5ca50f38675bda3d\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795766936, 0x07d2d2c82946aca4e72d48d6cca8d60914f45febdb783afbd1dfe2ff6b05ce1a, 28, 0xa698b5babe466c565348f6740ef1ccb60371143d5ccc99e84cd2246c43c35082, 0x7b8acc652630c57f86f82b1c1f9dfc5570df41e000e1775b5ca50f38675bda3d)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/33",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a34834356dc830f4240836acfc08301527b94036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093aa9288e4825ace3bb127709a1997eaf74a73e62a8db3d91e17d084441ecd90077b5000000000000000000000000000000000000000000000000000000000000001cd652ff261703bc3f92bd600ab0283bde40206a92e7605fccd32bb2036a2d5d1b03e90cc5191a97760d5a23d76a27b7a49c5fe41d2b78b92734ebe5bc251a6331c001a0cb3b594c0f5f0f4eba6311cb2ddbe0dd0c1cba5ef6dbdb4aab9c4611fa84141ba00ae3ed952bcc262d758a7ad94a2a65fc478ca9b2293d7b97b546a5c650afcccd\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093aa9288e4825ace3bb127709a1997eaf74a73e62a8db3d91e17d084441ecd90077b5000000000000000000000000000000000000000000000000000000000000001cd652ff261703bc3f92bd600ab0283bde40206a92e7605fccd32bb2036a2d5d1b03e90cc5191a97760d5a23d76a27b7a49c5fe41d2b78b92734ebe5bc251a6331\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795766953, 0x288e4825ace3bb127709a1997eaf74a73e62a8db3d91e17d084441ecd90077b5, 28, 0xd652ff261703bc3f92bd600ab0283bde40206a92e7605fccd32bb2036a2d5d1b, 0x03e90cc5191a97760d5a23d76a27b7a49c5fe41d2b78b92734ebe5bc251a6331)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        }
+      ],
+      "faultsInjected": {
+        "dropAfterSettle": 0,
+        "error503AfterSettle": 0,
+        "dropBeforeSettle": 0
+      },
+      "errors": {},
+      "medianMs": 1004,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "no-faults",
+      "title": "No faults (sanity check)",
+      "client": "x402-once",
+      "purchases": 40,
+      "delivered": 38,
+      "itemsPaidFor": 38,
+      "transfersOnChain": 38,
+      "movedUsdc": "0.038",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 0,
+      "toldItWasPaid": 0,
+      "toldWithTransaction": 0,
+      "sellerReplays": 0,
+      "rejections": [
+        {
+          "url": "/item/5",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a34834356ec830f4240836acfc08301526794036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093ab68a00c9a5c16bb3af967d8feb1715784180ff970bc4df852abd5749edd24c301d000000000000000000000000000000000000000000000000000000000000001b1ae0f8fbc28f439f9874728f94c621e3a129948f5c01bde513fa8cda033b4c8c638b2f8c5ede823f666ef49c02c5427720bbf3c9bd3867bb19f1198bf751eccbc001a049e939266279884f7ebd5f6fb601fdd0a89db2f62c13ccb5f8913743c0c75057a072b455bd19d41ea0740ecf3504cd54ae09dafdcf0a61a26fbc77b348a6b96b20\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093ab68a00c9a5c16bb3af967d8feb1715784180ff970bc4df852abd5749edd24c301d000000000000000000000000000000000000000000000000000000000000001b1ae0f8fbc28f439f9874728f94c621e3a129948f5c01bde513fa8cda033b4c8c638b2f8c5ede823f666ef49c02c5427720bbf3c9bd3867bb19f1198bf751eccb\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795766966, 0x8a00c9a5c16bb3af967d8feb1715784180ff970bc4df852abd5749edd24c301d, 27, 0x1ae0f8fbc28f439f9874728f94c621e3a129948f5c01bde513fa8cda033b4c8c, 0x638b2f8c5ede823f666ef49c02c5427720bbf3c9bd3867bb19f1198bf751eccb)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/28",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a3483435703830f4240836acfc08301527394036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093ace64bfe92624a6310141f0a8e2ff8daee0b904b41c181ed5763bab759aa351bcf4000000000000000000000000000000000000000000000000000000000000001b37de3b9cb5bcb8bcdf83b90a3a6846e97dbb72d57d3601e4853ba9aae6213aa53e9edbeac82dbd4ced940b300f5ba2e2ca5f04c51d4b179918cc473b7b76d88dc080a084f5671e3d4f3bee09a79789743b1d5ee908ab3a6078c5ce8261a19abc551e60a0308bd0b7f3597071ef6532998dc1035beb56cdfa0353268a7500b491b912e978\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093ace64bfe92624a6310141f0a8e2ff8daee0b904b41c181ed5763bab759aa351bcf4000000000000000000000000000000000000000000000000000000000000001b37de3b9cb5bcb8bcdf83b90a3a6846e97dbb72d57d3601e4853ba9aae6213aa53e9edbeac82dbd4ced940b300f5ba2e2ca5f04c51d4b179918cc473b7b76d88d\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795766990, 0x64bfe92624a6310141f0a8e2ff8daee0b904b41c181ed5763bab759aa351bcf4, 27, 0x37de3b9cb5bcb8bcdf83b90a3a6846e97dbb72d57d3601e4853ba9aae6213aa5, 0x3e9edbeac82dbd4ced940b300f5ba2e2ca5f04c51d4b179918cc473b7b76d88d)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        }
+      ],
+      "faultsInjected": {
+        "dropAfterSettle": 0,
+        "error503AfterSettle": 0,
+        "dropBeforeSettle": 0
+      },
+      "errors": {},
+      "medianMs": 987,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-plain-seller",
+      "title": "30% of paid requests hit a fault; seller does not replay",
+      "client": "stock @x402/fetch",
+      "purchases": 40,
+      "delivered": 36,
+      "itemsPaidFor": 37,
+      "transfersOnChain": 48,
+      "movedUsdc": "0.048",
+      "itemsChargedTwiceOrMore": 7,
+      "extraTransfers": 11,
+      "paidButNotDelivered": 1,
+      "toldItWasPaid": 0,
+      "toldWithTransaction": 0,
+      "sellerReplays": 0,
+      "rejections": [
+        {
+          "url": "/item/6",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Nonce provided for the transaction is lower than the current nonce of the account.\nTry increasing the nonce or find the latest nonce with `getTransactionCount`.\n\nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093ae66f56ced68c6a6a04784674935afea22971866d34b4777dece923ea1d0c2344ae000000000000000000000000000000000000000000000000000000000000001c7e2947db3472d866ba0517373d4b60696dd3d9c3d3917c6453081b1aa2bdf8fc72f3fd1445bf24bcf2d1bad09eeed49fa44ec005074ad0ccc09752c36aa35ca2\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767014, 0x6f56ced68c6a6a04784674935afea22971866d34b4777dece923ea1d0c2344ae, 28, 0x7e2947db3472d866ba0517373d4b60696dd3d9c3d3917c6453081b1aa2bdf8fc, 0x72f3fd1445bf24bcf2d1bad09eeed49fa44ec005074ad0ccc09752c36aa35ca2)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: nonce too low: next nonce 4413216, tx nonce 4413215\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/10",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Nonce provided for the transaction is lower than the current nonce of the account.\nTry increasing the nonce or find the latest nonce with `getTransactionCount`.\n\nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093aea9b4fa51fcef47608b1f519b70a24caada57b34b661f6918cd02b2e210b33e734000000000000000000000000000000000000000000000000000000000000001cf10a2914e28845d54c1ae1d8396c8bd0c4071625200af388136f0be0a575d4f11c3dc1be07b1f318f4f60c2dac89f0349a92c58634698d26aa07d32bc1451907\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767018, 0x9b4fa51fcef47608b1f519b70a24caada57b34b661f6918cd02b2e210b33e734, 28, 0xf10a2914e28845d54c1ae1d8396c8bd0c4071625200af388136f0be0a575d4f1, 0x1c3dc1be07b1f318f4f60c2dac89f0349a92c58634698d26aa07d32bc1451907)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: nonce too low: next nonce 4413221, tx nonce 4413220\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/13",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Nonce provided for the transaction is lower than the current nonce of the account.\nTry increasing the nonce or find the latest nonce with `getTransactionCount`.\n\nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093af0d71c63852d87b19fd6c7e863a62f1d487de5994255ee6064b0ac0502b183bb57000000000000000000000000000000000000000000000000000000000000001cee102db88d9300fb2b9b964fcb40b5f2a8910401f772a2f3fff9ad7481eb6f9b760dcc6225d97a247e21980d78cf06d0ab95b5d2b39e1f0a3afd8aba87f601a8\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767024, 0xd71c63852d87b19fd6c7e863a62f1d487de5994255ee6064b0ac0502b183bb57, 28, 0xee102db88d9300fb2b9b964fcb40b5f2a8910401f772a2f3fff9ad7481eb6f9b, 0x760dcc6225d97a247e21980d78cf06d0ab95b5d2b39e1f0a3afd8aba87f601a8)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: nonce too low: next nonce 4413227, tx nonce 4413226\nVersion: viem@2.48.11"
+        }
+      ],
+      "faultsInjected": {
+        "dropAfterSettle": 10,
+        "error503AfterSettle": 2,
+        "dropBeforeSettle": 3
+      },
+      "errors": {
+        "TypeError": 1
+      },
+      "medianMs": 1001,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-plain-seller",
+      "title": "30% of paid requests hit a fault; seller does not replay",
+      "client": "x402-once",
+      "purchases": 40,
+      "delivered": 30,
+      "itemsPaidFor": 38,
+      "transfersOnChain": 38,
+      "movedUsdc": "0.038",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 8,
+      "toldItWasPaid": 8,
+      "toldWithTransaction": 8,
+      "sellerReplays": 0,
+      "rejections": [
+        {
+          "url": "/item/0",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/1",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/6",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/8",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/12",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/15",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/17",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a348343575f830f4240836acfc08301527394036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b2d3383646662ae225f183eb459c8f2156c48c8898e9c4fbf5009d3d554567653df000000000000000000000000000000000000000000000000000000000000001b7ba71c4eeac88a477a6c2fb61c77e101c8a96ea9b0e38c779b7f015436316a3e0e56c71979356cb6d7572add1889f42f86289f73608550cbfb4bbaa3d2eebfa0c001a04561ed66841547f6bb72487c7a155a62fdf4703296f41644101d3d308fe1566aa055681b106bd2868a37aca8269ed54ed47c4b522836127456656053bb1c0b987a\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b2d3383646662ae225f183eb459c8f2156c48c8898e9c4fbf5009d3d554567653df000000000000000000000000000000000000000000000000000000000000001b7ba71c4eeac88a477a6c2fb61c77e101c8a96ea9b0e38c779b7f015436316a3e0e56c71979356cb6d7572add1889f42f86289f73608550cbfb4bbaa3d2eebfa0\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767085, 0x3383646662ae225f183eb459c8f2156c48c8898e9c4fbf5009d3d554567653df, 27, 0x7ba71c4eeac88a477a6c2fb61c77e101c8a96ea9b0e38c779b7f015436316a3e, 0x0e56c71979356cb6d7572add1889f42f86289f73608550cbfb4bbaa3d2eebfa0)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/18",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/30",
+          "status": 402,
+          "body": "{\"error\":\"invalid_exact_evm_nonce_already_used\"}",
+          "header": "has PAYMENT-REQUIRED"
+        },
+        {
+          "url": "/item/32",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Nonce provided for the transaction is lower than the current nonce of the account.\nTry increasing the nonce or find the latest nonce with `getTransactionCount`.\n\nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b3f6f3e35bcfd9813ec24379a21a2255a2f241defcaf75f93ef3e4582132c6a620b000000000000000000000000000000000000000000000000000000000000001bef7ecaca008cac114c5011dae621fe3db6ddeb8c30f22142555c1234b8e7a18e4f300f7c829dad8b869d416e1139fa1427ea1733d1da7119218222262790a29c\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767103, 0x6f3e35bcfd9813ec24379a21a2255a2f241defcaf75f93ef3e4582132c6a620b, 27, 0xef7ecaca008cac114c5011dae621fe3db6ddeb8c30f22142555c1234b8e7a18e, 0x4f300f7c829dad8b869d416e1139fa1427ea1733d1da7119218222262790a29c)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: nonce too low: next nonce 4413298, tx nonce 4413297\nVersion: viem@2.48.11"
+        }
+      ],
+      "faultsInjected": {
+        "dropAfterSettle": 7,
+        "error503AfterSettle": 1,
+        "dropBeforeSettle": 3
+      },
+      "errors": {
+        "SettledWithoutDeliveryError": 8
+      },
+      "medianMs": 1004,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-replaying-seller",
+      "title": "30% of paid requests hit a fault; seller replays a settled payment",
+      "client": "stock @x402/fetch",
+      "purchases": 40,
+      "delivered": 33,
+      "itemsPaidFor": 34,
+      "transfersOnChain": 45,
+      "movedUsdc": "0.045",
+      "itemsChargedTwiceOrMore": 7,
+      "extraTransfers": 11,
+      "paidButNotDelivered": 1,
+      "toldItWasPaid": 0,
+      "toldWithTransaction": 0,
+      "sellerReplays": 0,
+      "rejections": [
+        {
+          "url": "/item/2",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a3483435781830f4240836acfc08301528794036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b504c8596cb7645b9fa0d71a64314be955923150a3ee6f0123d7c8caace3cfaefdf000000000000000000000000000000000000000000000000000000000000001cecbb6537ea88ffb24928e35895e1659a8781f48583a3bbfd972156ba72cb1a97037ce5b6041014daacc54249a03d018b10b37426f2138af562cf9d35abfab3b2c001a048ebedd19bdc5fc2833e233b6e94c434348b232c1ff09458edcf607228b75f9ca02fcae5707f51609f218e6e8c96d35ee117d0ff672659e8e90d449a4b5e657cbb\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b504c8596cb7645b9fa0d71a64314be955923150a3ee6f0123d7c8caace3cfaefdf000000000000000000000000000000000000000000000000000000000000001cecbb6537ea88ffb24928e35895e1659a8781f48583a3bbfd972156ba72cb1a97037ce5b6041014daacc54249a03d018b10b37426f2138af562cf9d35abfab3b2\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767120, 0x4c8596cb7645b9fa0d71a64314be955923150a3ee6f0123d7c8caace3cfaefdf, 28, 0xecbb6537ea88ffb24928e35895e1659a8781f48583a3bbfd972156ba72cb1a97, 0x037ce5b6041014daacc54249a03d018b10b37426f2138af562cf9d35abfab3b2)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/3",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a3483435782830f4240836acfc08301528794036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b5140112dcc8e83c5aa65625d6fe5978517c1b128ce748ed4d31de31196a6bba7f1000000000000000000000000000000000000000000000000000000000000001c94b38a78615ca1f69cdea37707b683f640fd8c3daec8ada1ba0e0d1f135b9c2c710681ccb1bde31115e9fa3073ec27c11aaff2acf240ca9f103e80a25f97be5cc080a0d79778509707d982a80d5f32ed09e53034596e0e0c2a368ed33d1a49a7cdfd25a01962cfdaa98eaf26e69aef878cb5a7d8b9f280fb8f04b187ff8e97f0272da138\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b5140112dcc8e83c5aa65625d6fe5978517c1b128ce748ed4d31de31196a6bba7f1000000000000000000000000000000000000000000000000000000000000001c94b38a78615ca1f69cdea37707b683f640fd8c3daec8ada1ba0e0d1f135b9c2c710681ccb1bde31115e9fa3073ec27c11aaff2acf240ca9f103e80a25f97be5c\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767121, 0x40112dcc8e83c5aa65625d6fe5978517c1b128ce748ed4d31de31196a6bba7f1, 28, 0x94b38a78615ca1f69cdea37707b683f640fd8c3daec8ada1ba0e0d1f135b9c2c, 0x710681ccb1bde31115e9fa3073ec27c11aaff2acf240ca9f103e80a25f97be5c)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/6",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a3483435786830f4240836acfc08301527394036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b54e24218950604ef9cb151e84f10b45dfb90ad70b46979067c6e064c2213bd683a000000000000000000000000000000000000000000000000000000000000001b7c757dd5c03c06ece1af9232feb6df0865115b4260f183fa1c5e2221de1d18507c1f05cc257bce2bb6ed1212e371bf746842967013df4dd9a9124ea2acef3b46c080a0cd1975792d846a1dbd193d5da10bbfa57838fa6dddbaeb84a81e0ee7b5d7d943a00f6189324eb6572b7ac4f170ae6146c3c52bd2a59a89407a8dfefdb06d8e67d3\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b54e24218950604ef9cb151e84f10b45dfb90ad70b46979067c6e064c2213bd683a000000000000000000000000000000000000000000000000000000000000001b7c757dd5c03c06ece1af9232feb6df0865115b4260f183fa1c5e2221de1d18507c1f05cc257bce2bb6ed1212e371bf746842967013df4dd9a9124ea2acef3b46\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767124, 0xe24218950604ef9cb151e84f10b45dfb90ad70b46979067c6e064c2213bd683a, 27, 0x7c757dd5c03c06ece1af9232feb6df0865115b4260f183fa1c5e2221de1d1850, 0x7c1f05cc257bce2bb6ed1212e371bf746842967013df4dd9a9124ea2acef3b46)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/20",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a348343579a830f4240836acfc08301526794036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b6679d72b75871a53a063a9f4f52b22a2a89e1936b046b76a1a2dc2a70ee106e26f000000000000000000000000000000000000000000000000000000000000001b9ca13b18f3fcf57489a118cd43bc4b139f5b9add1fda00ec91f39dd686084cc52316f02bcb830c9d32130a70613391b99b3d0af23dc1516db0d0fba86be9203ec001a0e814b2871881ecf71a3795622cf58843caf90b3372a7506470823d6c2077b601a01e7de7f1a8f44144cfb45da7544fd15623b87a071de08a4b42a787911d0eec76\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b6679d72b75871a53a063a9f4f52b22a2a89e1936b046b76a1a2dc2a70ee106e26f000000000000000000000000000000000000000000000000000000000000001b9ca13b18f3fcf57489a118cd43bc4b139f5b9add1fda00ec91f39dd686084cc52316f02bcb830c9d32130a70613391b99b3d0af23dc1516db0d0fba86be9203e\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767142, 0x79d72b75871a53a063a9f4f52b22a2a89e1936b046b76a1a2dc2a70ee106e26f, 27, 0x9ca13b18f3fcf57489a118cd43bc4b139f5b9add1fda00ec91f39dd686084cc5, 0x2316f02bcb830c9d32130a70613391b99b3d0af23dc1516db0d0fba86be9203e)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/26",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Nonce provided for the transaction is lower than the current nonce of the account.\nTry increasing the nonce or find the latest nonce with `getTransactionCount`.\n\nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b6cca5d4d97727607ca48834ee5e8eae7850b118928e21b9710f892d020482acf19000000000000000000000000000000000000000000000000000000000000001ceac99d3d1cafac93b9312db17cceb0065bf7ac54f3c83280053e62cc925650505ac6f6b07a29bf874695c2a41d9a081eed0ba82b5b960d2e8542f750c5368310\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767148, 0xca5d4d97727607ca48834ee5e8eae7850b118928e21b9710f892d020482acf19, 28, 0xeac99d3d1cafac93b9312db17cceb0065bf7ac54f3c83280053e62cc92565050, 0x5ac6f6b07a29bf874695c2a41d9a081eed0ba82b5b960d2e8542f750c5368310)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: nonce too low: next nonce 4413348, tx nonce 4413347\nVersion: viem@2.48.11"
+        },
+        {
+          "url": "/item/27",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a34834357a4830f4240836acfc08301528794036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b6df2ec6c0af8ca818ed692359bc55f081c0b7d2c0eebe3dba2c1ff9db81d3f5c27000000000000000000000000000000000000000000000000000000000000001cc4d9a18a04fa922bdf39c538f62a31890bc9110c42de5a47eaf81d268b24ea426297c6e4d7411846792153864dad0cdec78bbb7323d663fdba1c7fc659a0223ec001a06b626393b3b678c7ffcca8514b41f6723a5970fd854b35fc7d19a2a8f1a98860a02067ac8db0e889e4278a3c1cd83116c7cde5cef75b3310cab4d4b0d29ec2707c\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b6df2ec6c0af8ca818ed692359bc55f081c0b7d2c0eebe3dba2c1ff9db81d3f5c27000000000000000000000000000000000000000000000000000000000000001cc4d9a18a04fa922bdf39c538f62a31890bc9110c42de5a47eaf81d268b24ea426297c6e4d7411846792153864dad0cdec78bbb7323d663fdba1c7fc659a0223e\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767149, 0xf2ec6c0af8ca818ed692359bc55f081c0b7d2c0eebe3dba2c1ff9db81d3f5c27, 28, 0xc4d9a18a04fa922bdf39c538f62a31890bc9110c42de5a47eaf81d268b24ea42, 0x6297c6e4d7411846792153864dad0cdec78bbb7323d663fdba1c7fc659a0223e)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        }
+      ],
+      "faultsInjected": {
+        "dropAfterSettle": 10,
+        "error503AfterSettle": 2,
+        "dropBeforeSettle": 3
+      },
+      "errors": {
+        "TypeError": 1
+      },
+      "medianMs": 1002,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    },
+    {
+      "scenario": "faults-replaying-seller",
+      "title": "30% of paid requests hit a fault; seller replays a settled payment",
+      "client": "x402-once",
+      "purchases": 40,
+      "delivered": 39,
+      "itemsPaidFor": 39,
+      "transfersOnChain": 39,
+      "movedUsdc": "0.039",
+      "itemsChargedTwiceOrMore": 0,
+      "extraTransfers": 0,
+      "paidButNotDelivered": 0,
+      "toldItWasPaid": 0,
+      "toldWithTransaction": 0,
+      "sellerReplays": 8,
+      "rejections": [
+        {
+          "url": "/item/20",
+          "stage": "settle",
+          "reason": "invalid_exact_evm_transaction_failed",
+          "message": "Missing or invalid parameters.\nDouble check you have provided the correct parameters.\n\nURL: https://sepolia.base.org\nRequest body: {\"method\":\"eth_sendRawTransaction\",\"params\":[\"0x02f9019583014a34834357d0830f4240836acfc08301528794036cbd53842c5426634e7929541ec2318f3dcf7e80b90124e3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b91b503eb5ee6b2c9097921303e20fe1908d189ef99ad6830c427e7afe327c4d01f000000000000000000000000000000000000000000000000000000000000001cf8ab4c60bb4ae1b60dac7583eedd2fbaad3f3f91743738bd7212a6ff0bb1b73543f73f41798b0913f7aa0cde70ba290b4d399f0bac062b74b45c189f21db5789c080a042cf26bd6a49305361d653ecd4425da42bd4e424ccae40f108c80568f959c638a02829085a577555ba4a4f85f6eeeab4e1c80337290cf991298f2160521f75443b\"]}\n \nRequest Arguments:\n  from:  0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n  to:    0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  data:  0xe3ee160e00000000000000000000000090155588417a50d15d9da48bd51bd68e2aeee06a00000000000000000000000053218a20e26a645d38141520e1a9b113b79713c000000000000000000000000000000000000000000000000000000000000003e80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006b093b91b503eb5ee6b2c9097921303e20fe1908d189ef99ad6830c427e7afe327c4d01f000000000000000000000000000000000000000000000000000000000000001cf8ab4c60bb4ae1b60dac7583eedd2fbaad3f3f91743738bd7212a6ff0bb1b73543f73f41798b0913f7aa0cde70ba290b4d399f0bac062b74b45c189f21db5789\n \nContract Call:\n  address:   0x036CbD53842c5426634e7929541eC2318f3dCF7e\n  function:  transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)\n  args:                               (0x90155588417a50D15D9DA48BD51Bd68E2aeEE06A, 0x53218A20E26a645d38141520E1a9B113B79713c0, 1000, 0, 1795767185, 0xb503eb5ee6b2c9097921303e20fe1908d189ef99ad6830c427e7afe327c4d01f, 28, 0xf8ab4c60bb4ae1b60dac7583eedd2fbaad3f3f91743738bd7212a6ff0bb1b735, 0x43f73f41798b0913f7aa0cde70ba290b4d399f0bac062b74b45c189f21db5789)\n  sender:    0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf\n\nDocs: https://viem.sh/docs/contract/writeContract\nDetails: replacement transaction underpriced\nVersion: viem@2.48.11"
+        }
+      ],
+      "faultsInjected": {
+        "dropAfterSettle": 7,
+        "error503AfterSettle": 1,
+        "dropBeforeSettle": 3
+      },
+      "errors": {},
+      "medianMs": 971,
+      "checks": {
+        "chainMatchesBalance": true,
+        "sellerLogMatchesChain": true
+      }
+    }
+  ]
+}

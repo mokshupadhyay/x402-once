@@ -124,6 +124,27 @@ describe('evmAuthorizationResolver', () => {
     expect(noLogs).toEqual({ verdict: 'settled' });
   });
 
+  it('finds the transaction on a public RPC that refuses wide log queries', async () => {
+    const { record, validBefore } = await makeRecord();
+    const txHash = '0x' + 'cd'.repeat(32);
+    const ranges: number[] = [];
+    const node = (async (_u: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { method: string; params: any[] };
+      const json = (result: unknown) => new Response(JSON.stringify({ jsonrpc: '2.0', id: 1, result }));
+      if (body.method === 'eth_chainId') return json('0x14a34');
+      if (body.method === 'eth_getBlockByNumber') return json({ number: '0x2710', timestamp: hex(validBefore + 5) });
+      if (body.method === 'eth_call') return json(ONE);
+      if (body.method === 'eth_getLogs') {
+        const range = Number(BigInt(body.params[0].toBlock) - BigInt(body.params[0].fromBlock));
+        ranges.push(range);
+        return range > 200 ? new Response(JSON.stringify({ error: { code: -32614, message: 'eth_getLogs is limited to a 200 range' } }), { status: 413 }) : json([{ transactionHash: txHash }]);
+      }
+      return json(null);
+    }) as typeof fetch;
+    expect(await evmAuthorizationResolver({ rpcUrls: { [NETWORK]: RPC }, fetch: node })(record)).toEqual({ verdict: 'settled', transaction: txHash });
+    expect(ranges).toEqual([5000, 150]); // the wide window was refused, the narrow one worked
+  });
+
   it('reads the block tag you ask for', async () => {
     const { record, validBefore } = await makeRecord();
     const calls: { method: string; params: unknown[] }[] = [];

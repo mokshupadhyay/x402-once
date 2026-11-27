@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.0 (unreleased)
+## 0.1.0 (2026-11-27)
 - `createPaidFetch`: save-before-send, reuse of the signed payment, expiry resolution, single flight.
 - `evmAuthorizationResolver`: asks the token contract (`authorizationState`) whether an EIP-3009 authorization was used.
 - `MemoryPaymentStore`.

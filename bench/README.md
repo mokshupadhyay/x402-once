@@ -40,7 +40,7 @@ Faults are picked from a hash of (seed, URL, how many paid requests that URL has
 - **Items charged twice**: items that were paid for two or more times.
 - **Extra transfers**: transfers beyond one per item. This is wasted money.
 - **Paid, not delivered**: items whose payment settled but whose data never reached the buyer.
-- **…and told so**: of those, how many the client reported as `SettledWithoutDeliveryError` (with the transaction), rather than leaving the caller with a bare 402.
+- **…and told so**: of those, how many the client reported as `SettledWithoutDeliveryError`, rather than leaving the caller with a bare 402. The next column says how many of those named the transaction (that needs a log query the RPC may refuse; the resolver retries with a narrow window).
 
 ## Reading the rows fairly
 

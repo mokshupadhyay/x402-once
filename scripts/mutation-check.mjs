@@ -493,6 +493,13 @@ const mutations = [
     find: '?? permit2Of(payload)?.deadline);',
     replace: '));',
   },
+  {
+    id: 'M70',
+    file: 'src/resolve.ts',
+    claim: 'The transaction is still found on a public RPC that refuses wide log queries',
+    find: 'for (const window of [...new Set([lookback, 150])]) {',
+    replace: 'for (const window of [lookback]) {',
+  },
 ];
 
 const dir = mkdtempSync(join(tmpdir(), 'x402-once-mutation-'));

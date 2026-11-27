@@ -2,14 +2,14 @@
 
 Pay once for each [x402](https://github.com/x402-foundation/x402) purchase, even when the network lies.
 
-If a response is lost after the seller settled, the stock x402 client signs a second payment with a new nonce, and the seller can settle that one too. `x402-once` saves the signed payment before sending it and sends the same payment again on a retry, so a retry does not become a second charge. That holds under the conditions listed in [What is and is not proven](#what-is-and-is-not-proven) and [the threat model](docs/OPERATIONS.md#threat-model): a client that has not been tampered with, a store that keeps the record, and an RPC you trust to say when a payment can no longer settle.
+If a response is lost after the seller settled, the stock x402 client signs a second payment with a new nonce, and the seller can settle that one too. `x402-once` saves the signed payment before sending it and sends the same payment again on a retry, so a retry does not become a second charge. That holds under the conditions listed in [What is and is not proven](#what-is-and-is-not-proven) and [the threat model](https://github.com/mokshupadhyay/x402-once/blob/main/docs/OPERATIONS.md#threat-model): a client that has not been tampered with, a store that keeps the record, and an RPC you trust to say when a payment can no longer settle.
 
 - **One install.** It wraps the `x402Client` you already have. No queue library, no second dependency.
 - **Non-custodial.** Your client signs. This package never sees a key.
 - **Fails closed.** If it cannot tell whether an old payment settled, it signs nothing and says so.
-- **Tested against the bug.** In the simulated and benchmark tests, random faults, clock jumps and retries never charged a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 69 of 69 hand-picked deliberate breaks of the source are caught by the tests (these are the author's own tests and mutations, not an outside audit).
+- **Tested against the bug.** In the simulated and benchmark tests, random faults, clock jumps and retries never charged a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](https://github.com/mokshupadhyay/x402-once/blob/main/docs/MUTATION_EVIDENCE.md): 70 of 70 hand-picked deliberate breaks of the source are caught by the tests (these are the author's own tests and mutations, not an outside audit).
 
-> **Status: 0.x, not published yet.** Minor versions may change the API. Evidence comes from a simulated seller (unit and property tests) and from the official seller and facilitator code on a local chain and on Base Sepolia, with the lost responses injected by a proxy in front of the seller. See [What is and is not proven](#what-is-and-is-not-proven).
+> **Status: 0.1, first release.** Minor versions may change the API. Evidence comes from a simulated seller (unit and property tests) and from the official seller and facilitator code on a local chain and on Base Sepolia, with the lost responses injected by a proxy in front of the seller. See [What is and is not proven](#what-is-and-is-not-proven).
 
 **Use it when** your buyer (an agent, a script, a backend) retries paid calls and a second charge would hurt. **Do not rely on it when:** the seller or facilitator itself settles one payment twice ([#786](https://github.com/x402-foundation/x402/issues/786)); you need the data more than you need to avoid a second payment and your seller cannot replay a settled payment (you will get `SettledWithoutDeliveryError` instead of the data); you run several machines against one store (the file store is for one machine); you pay on Solana, x402 v1 or through axios (not covered: it fails closed).
 
@@ -123,18 +123,18 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 
 ## What is and is not proven
 
-**Proven (145 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
+**Proven (146 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
 - No purchase is paid twice under random faults, clock jumps and retries. The identical test finds double charges in the stock `@x402/fetch` wrapper.
 - The deadline is read from the real signed EIP-3009 authorization (checked with the official `@x402/evm` scheme and a throwaway key, no network).
 - The property tests found a real bug in the first design (a payment that settled but was never delivered could be bought again). It is fixed and has a regression test.
 
 **Not proven yet:**
-- Behaviour on a public testnet. The benchmark in [bench/](bench/README.md) runs the official seller and facilitator code on a local chain (40 purchases, 30% of paid requests lose their response; seed `bench-1`); the same run on **Base Sepolia** with the public x402.org facilitator is below.
+- Behaviour on a public testnet. The benchmark in [bench/](https://github.com/mokshupadhyay/x402-once/blob/main/bench/README.md) runs the official seller and facilitator code on a local chain (40 purchases, 30% of paid requests lose their response; seed `bench-1`); the same run on **Base Sepolia** with the public x402.org facilitator is below.
 
 | Seller | Client | Delivered | Transfers on chain | Items charged twice | Wasted transfers |
 |---|---|---|---|---|---|
 | plain (like the official middleware) | stock `@x402/fetch` | 38/40 | 51 | 9 | 11 |
-| plain | `x402-once` | 31/40, the other 9 reported as `SettledWithoutDeliveryError` with the transaction | 40 | 0 | 0 |
+| plain | `x402-once` | 31/40, the other 9 reported as `SettledWithoutDeliveryError` | 40 | 0 | 0 |
 | replays a settled payment | stock | 38/40 | 51 | 9 | 11 |
 | replays a settled payment | `x402-once` | 40/40 | 40 | 0 | 0 |
 
@@ -156,9 +156,11 @@ The trade is plain: with a seller that cannot replay, `x402-once` will not pay t
 | no faults | stock `@x402/fetch` | 92/100 | 92 | 92 | 0 | 0 |
 | no faults | `x402-once` | 94/100 | 94 | 94 | 0 | 0 |
 | plain | stock | 92/100 | 113 | 94 | 17 | 19 |
-| plain | `x402-once` | 77/100, the other 19 reported with the transaction | 96 | 96 | 0 | 0 |
+| plain | `x402-once` | 77/100, the other 19 reported as `SettledWithoutDeliveryError` | 96 | 96 | 0 | 0 |
 | replays a settled payment | stock | 89/100 | 109 | 93 | 14 | 16 |
 | replays a settled payment | `x402-once` | 95/100 | 95 | 95 | 0 | 0 |
+
+A further 40-purchase run (seed `bench-3`), made after the transaction lookup was fixed to work on public RPCs that cap log queries at about 200 blocks: with a plain seller the standard client made 48 transfers for 37 items and `x402-once` 38 for 38; all 8 purchases that `x402-once` reported as paid-but-undelivered named their transaction.
 
 With no faults at all, the public x402.org facilitator failed to settle 6 to 8 of every 100 payments, for both clients. That is why "delivered" is below 100 in the first rows. Across every Base Sepolia run so far (20, 20 and 100 purchases per row), the stock client paid 5 to 19 extra times per fault row and `x402-once` never paid twice.
 
@@ -180,7 +182,7 @@ A saved record contains a **signed payment authorization**. Until its `validBefo
 
 - Keep the store directory out of git (add it to `.gitignore`), out of shared volumes and out of backups you do not control. The file store creates files readable by the owner only.
 - Once a purchase is delivered, the record keeps only what is needed to recognise it; the signed payload is not kept.
-- Purge old records (see [docs/OPERATIONS.md](docs/OPERATIONS.md)).
+- Purge old records (see [docs/OPERATIONS.md](https://github.com/mokshupadhyay/x402-once/blob/main/docs/OPERATIONS.md)).
 - The package never sees your key: your `x402Client` signs.
 - **The payment is a bearer instrument.** Anyone who sees the `PAYMENT-SIGNATURE` header before it expires can submit it to the chain themselves. They cannot redirect the money (the payee and amount are signed), but the seller's facilitator would then find the payment already used and the buyer would be charged without delivery. So: only https (this package refuses plain http except localhost), no redirects to another origin, `Cache-Control: no-store` on the paid request. Sellers should answer paid requests with `Cache-Control: private, no-store` and not log the header.
 - **Set limits.** The seller chooses the payee, token and price. Pass `limits: { networks, assets, payTo, maxAmount }` so a payment outside what you intended is refused before it is saved or sent. This is in addition to the spend controls of your `x402Client` (by default, only known tokens and a $1 cap per payment).
@@ -189,14 +191,14 @@ A saved record contains a **signed payment authorization**. Until its `validBefo
 
 ## Documentation
 
-- [docs/API.md](docs/API.md): every option, default, error and event.
-- [docs/OPERATIONS.md](docs/OPERATIONS.md): what to do on each error, reconciliation, retention, troubleshooting, threat model.
-- [docs/QA_PLAN.md](docs/QA_PLAN.md): the test scenarios and release checklist.
-- [bench/README.md](bench/README.md): the on-chain benchmark.
+- [docs/API.md](https://github.com/mokshupadhyay/x402-once/blob/main/docs/API.md): every option, default, error and event.
+- [docs/OPERATIONS.md](https://github.com/mokshupadhyay/x402-once/blob/main/docs/OPERATIONS.md): what to do on each error, reconciliation, retention, troubleshooting, threat model.
+- [docs/QA_PLAN.md](https://github.com/mokshupadhyay/x402-once/blob/main/docs/QA_PLAN.md): the test scenarios and release checklist.
+- [bench/README.md](https://github.com/mokshupadhyay/x402-once/blob/main/bench/README.md): the on-chain benchmark.
 
 ## Design
 
-See [docs/DESIGN.md](docs/DESIGN.md). Short version: save before send, reuse while valid, ask the chain when expired, fail closed when unsure.
+See [docs/DESIGN.md](https://github.com/mokshupadhyay/x402-once/blob/main/docs/DESIGN.md). Short version: save before send, reuse while valid, ask the chain when expired, fail closed when unsure.
 
 ## Licence
 

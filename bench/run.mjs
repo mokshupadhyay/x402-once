@@ -49,7 +49,7 @@ async function purchase(fetchImpl, url) {
       // Only a dropped connection counts as a retryable network failure; any other TypeError is a bug and must surface.
       const dropped = name === 'TypeError' && /fetch failed|terminated|other side closed|ECONNRESET|socket/i.test(`${error?.message} ${error?.cause?.message ?? ''} ${error?.cause?.code ?? ''}`);
       if (!dropped) {
-        return { delivered: false, error: name, attempts: attempt + 1, ms: performance.now() - started };
+        return { delivered: false, error: name, ...(error?.record?.settle?.transaction ? { tx: true } : {}), attempts: attempt + 1, ms: performance.now() - started };
       }
       last = { error: name };
     }
@@ -135,6 +135,7 @@ async function main() {
       const errors = {};
       for (const o of outcomes) if (o.error) errors[o.error] = (errors[o.error] ?? 0) + 1;
       const toldItWasPaid = errors.SettledWithoutDeliveryError ?? 0;
+      const toldWithTransaction = outcomes.filter((o) => o.error === 'SettledWithoutDeliveryError' && o.tx).length;
       const transfers = logs.length;
       const moved = endBalance - startBalance;
       const row = {
@@ -150,6 +151,7 @@ async function main() {
         extraTransfers: transfers - paidItems,
         paidButNotDelivered: paidNotDelivered,
         toldItWasPaid,
+        toldWithTransaction,
         sellerReplays: seller.stats.replays,
         rejections: seller.stats.rejections.slice(0, 20),
         faultsInjected: seller.stats.faultsInjected,
@@ -161,7 +163,7 @@ async function main() {
         throw new Error(`Measurement check failed for ${scenario.id} / ${client.name}: ${JSON.stringify(row.checks)}`);
       }
       results.push(row);
-      console.log(`  ${scenario.id.padEnd(24)} ${client.name.padEnd(18)} delivered ${String(delivered).padStart(3)}/${N}  transfers ${String(transfers).padStart(3)}  items paid ${String(paidItems).padStart(3)}  charged twice ${String(doubleCharged).padStart(2)}  paid-not-delivered ${String(paidNotDelivered).padStart(2)} (told so: ${toldItWasPaid})  ${JSON.stringify(errors)}`);
+      console.log(`  ${scenario.id.padEnd(24)} ${client.name.padEnd(18)} delivered ${String(delivered).padStart(3)}/${N}  transfers ${String(transfers).padStart(3)}  items paid ${String(paidItems).padStart(3)}  charged twice ${String(doubleCharged).padStart(2)}  paid-not-delivered ${String(paidNotDelivered).padStart(2)} (told so: ${toldItWasPaid}, with tx: ${toldWithTransaction})  ${JSON.stringify(errors)}`);
       await seller.stop();
     }
   }
@@ -178,8 +180,8 @@ function toMarkdown(report) {
   const lines = [`# Benchmark: ${report.environment}`, '', `Run ${report.when}. ${report.purchases} purchases per row, ${report.retries} retries on a dropped connection or 5xx, fault seed \`${report.seed}\`, price ${formatUnits(BigInt(report.amountAtomic), 6)} USDC.`, ''];
   for (const id of [...new Set(report.results.map((r) => r.scenario))]) {
     const rows = report.results.filter((r) => r.scenario === id);
-    lines.push(`## ${rows[0].title}`, '', '| Client | Delivered | Transfers on chain | Items charged twice | Extra transfers | Paid, not delivered | …and told so | Median ms |', '|---|---|---|---|---|---|---|---|');
-    for (const r of rows) lines.push(`| ${r.client} | ${r.delivered}/${r.purchases} | ${r.transfersOnChain} | ${r.itemsChargedTwiceOrMore} | ${r.extraTransfers} | ${r.paidButNotDelivered} | ${r.toldItWasPaid} | ${r.medianMs} |`);
+    lines.push(`## ${rows[0].title}`, '', '| Client | Delivered | Transfers on chain | Items charged twice | Extra transfers | Paid, not delivered | …and told so | …naming the tx | Median ms |', '|---|---|---|---|---|---|---|---|---|');
+    for (const r of rows) lines.push(`| ${r.client} | ${r.delivered}/${r.purchases} | ${r.transfersOnChain} | ${r.itemsChargedTwiceOrMore} | ${r.extraTransfers} | ${r.paidButNotDelivered} | ${r.toldItWasPaid} | ${r.toldWithTransaction ?? '-'} | ${r.medianMs} |`);
     lines.push('');
   }
   return lines.join('\n');

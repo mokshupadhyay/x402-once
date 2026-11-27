@@ -15,7 +15,7 @@ Written as a QA lead would before a first public release. Status is what has act
 | Explicit key: bound to the request, cannot be paid twice | unit | done |
 | Overlapping calls share one payment; 500 parallel same-URL calls make 1 payment | unit, load check | done |
 | Two processes on one store: only one payment saved and sent | unit, differential test | done |
-| Seller refuses a re-sent payment; chain says used: reported with the transaction | unit, Base Sepolia | done |
+| Seller refuses a re-sent payment; chain says used: reported as undelivered, naming the transaction | unit, Base Sepolia (40-purchase run) | done |
 | POST bodies, FormData, streamed bodies, HEAD/OPTIONS retries | unit, adversarial QA | done |
 | Abort and timeout between save and send | unit, adversarial QA | done |
 | Body dies after a 200: purchase reopens, retry re-sends the same payment | unit | done |
@@ -47,7 +47,7 @@ Written as a QA lead would before a first public release. Status is what has act
 
 - Property test: random fault sequences, clock jumps, retries; no purchase paid twice (30,000 runs pass; CI repeats it).
 - Differential test: 400 random runs, 2 to 3 wrappers sharing one store and seller; no violation.
-- Mutation check: 69 hand-picked deliberate breaks of the source; the tests must fail for each (see MUTATION_EVIDENCE.md).
+- Mutation check: 70 hand-picked deliberate breaks of the source; the tests must fail for each (see MUTATION_EVIDENCE.md).
 - Real network: Base Sepolia benchmark, two runs of 20 and one of 100 purchases per row, public facilitator. **Open**: more seeds, and a seller the author does not control.
 
 ## 5. Security

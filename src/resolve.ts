@@ -121,19 +121,31 @@ export function evmAuthorizationResolver(options: EvmAuthorizationResolverOption
     return body.result;
   }
 
-  /** The transaction that emitted AuthorizationUsed for this authorization, or undefined when it cannot be found. */
+  /**
+   * The transaction that emitted AuthorizationUsed for this authorization, or undefined when it cannot be found.
+   * Public RPCs often refuse log queries over a wide block range (about 200 blocks is common), so a wide window is
+   * tried first and a narrow one after it: a settlement is normally only a few minutes old when this runs.
+   */
   async function findTransaction(url: string, asset: string, from: string, nonce: string, at: string): Promise<string | undefined> {
+    let latest: bigint;
     try {
-      const latest = at === 'latest' ? BigInt((await rpc(url, 'eth_blockNumber', [])) as string) : BigInt(at);
-      const first = latest > BigInt(lookback) ? latest - BigInt(lookback) : 0n;
-      const logs = (await rpc(url, 'eth_getLogs', [
-        { address: asset, fromBlock: '0x' + first.toString(16), toBlock: at, topics: [AUTHORIZATION_USED, '0x' + pad32(from), '0x' + pad32(nonce)] },
-      ])) as Array<{ transactionHash?: unknown }>;
-      const hash = logs[0]?.transactionHash;
-      return typeof hash === 'string' ? hash : undefined;
+      latest = at === 'latest' ? BigInt((await rpc(url, 'eth_blockNumber', [])) as string) : BigInt(at);
     } catch {
       return undefined;
     }
+    for (const window of [...new Set([lookback, 150])]) {
+      try {
+        const first = latest > BigInt(window) ? latest - BigInt(window) : 0n;
+        const logs = (await rpc(url, 'eth_getLogs', [
+          { address: asset, fromBlock: '0x' + first.toString(16), toBlock: at, topics: [AUTHORIZATION_USED, '0x' + pad32(from), '0x' + pad32(nonce)] },
+        ])) as Array<{ transactionHash?: unknown }>;
+        const hash = logs[0]?.transactionHash;
+        if (typeof hash === 'string') return hash;
+      } catch {
+        /* try the narrower window */
+      }
+    }
+    return undefined;
   }
 
   /** One provider's answer. */
