@@ -1,4 +1,4 @@
-import type { PaymentRecord, SettlementResolver } from './types.js';
+import type { PaymentRecord, SettlementFinding } from './types.js';
 
 interface Eip3009Authorization {
   from?: unknown;
@@ -26,45 +26,81 @@ export interface EvmAuthorizationResolverOptions {
   /** JSON-RPC URL per network, keyed by the CAIP-2 id the seller uses, for example `eip155:8453`. */
   rpcUrls: Record<string, string>;
   fetch?: typeof globalThis.fetch;
+  /**
+   * How many blocks back to look for the transaction that used the authorization, so the error can name it.
+   * Best effort: when the RPC refuses the range, the verdict is still returned, just without a transaction. Default 5000.
+   */
+  lookbackBlocks?: number;
 }
 
 const AUTHORIZATION_STATE = '0xe94a0102'; // authorizationState(address,bytes32), the EIP-3009 view function
+const AUTHORIZATION_USED = '0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5'; // keccak256("AuthorizationUsed(address,bytes32)")
 
 const pad32 = (hex: string) => hex.replace(/^0x/, '').toLowerCase().padStart(64, '0');
 
 /**
  * Asks the token contract whether an EIP-3009 authorization was used (`authorizationState`).
- * `true` means the payment settled. `false` after the deadline means it can never settle. Any doubt returns `unknown`.
+ * `true` means the payment settled. `false` means it can never settle only once the latest block's timestamp is past
+ * the authorization's `validBefore`; before that, or if the chain time cannot be read, the answer is `unknown`. Any doubt returns `unknown`.
  * Read-only: no key, no signature, no transaction.
  */
-export function evmAuthorizationResolver(options: EvmAuthorizationResolverOptions): SettlementResolver {
+export function evmAuthorizationResolver(options: EvmAuthorizationResolverOptions): (record: PaymentRecord) => Promise<SettlementFinding> {
   const doFetch = options.fetch ?? globalThis.fetch;
-  return async (record: PaymentRecord) => {
+  const lookback = options.lookbackBlocks ?? 5000;
+
+  async function rpc(url: string, method: string, params: unknown[]): Promise<unknown> {
+    const response = await doFetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+    if (!response.ok) throw new Error(`RPC ${method} answered ${response.status}`);
+    const body = (await response.json()) as { result?: unknown; error?: unknown };
+    if (body.error || body.result === undefined) throw new Error(`RPC ${method} failed`);
+    return body.result;
+  }
+
+  /** The transaction that emitted AuthorizationUsed for this authorization, or undefined when it cannot be found. */
+  async function findTransaction(url: string, asset: string, from: string, nonce: string): Promise<string | undefined> {
+    try {
+      const latest = BigInt((await rpc(url, 'eth_blockNumber', [])) as string);
+      const first = latest > BigInt(lookback) ? latest - BigInt(lookback) : 0n;
+      const logs = (await rpc(url, 'eth_getLogs', [
+        { address: asset, fromBlock: '0x' + first.toString(16), toBlock: 'latest', topics: [AUTHORIZATION_USED, '0x' + pad32(from), '0x' + pad32(nonce)] },
+      ])) as Array<{ transactionHash?: unknown }>;
+      const hash = logs[0]?.transactionHash;
+      return typeof hash === 'string' ? hash : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return async (record: PaymentRecord): Promise<SettlementFinding> => {
     const accepted = record.payload.accepted;
     const url = options.rpcUrls[accepted.network];
     const auth = authorizationOf(record.payload.payload);
-    if (!url || !auth || typeof auth.from !== 'string' || typeof auth.nonce !== 'string') return 'unknown';
-    if (!/^0x[0-9a-fA-F]{64}$/.test(auth.nonce) || !/^0x[0-9a-fA-F]{40}$/.test(auth.from)) return 'unknown';
+    if (!url || !auth || typeof auth.from !== 'string' || typeof auth.nonce !== 'string') return { verdict: 'unknown' };
+    if (!/^0x[0-9a-fA-F]{64}$/.test(auth.nonce) || !/^0x[0-9a-fA-F]{40}$/.test(auth.from)) return { verdict: 'unknown' };
 
     try {
-      const response = await doFetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_call',
-          params: [{ to: accepted.asset, data: AUTHORIZATION_STATE + pad32(auth.from) + pad32(auth.nonce) }, 'latest'],
-        }),
-      });
-      if (!response.ok) return 'unknown';
-      const body = (await response.json()) as { result?: unknown; error?: unknown };
-      if (typeof body.result !== 'string' || body.error) return 'unknown';
-      if (/^0x0*1$/.test(body.result)) return 'settled';
-      if (/^0x0*$/.test(body.result)) return 'unsettled';
-      return 'unknown';
+      const result = await rpc(url, 'eth_call', [{ to: accepted.asset, data: AUTHORIZATION_STATE + pad32(auth.from) + pad32(auth.nonce) }, 'latest']);
+      if (typeof result !== 'string') return { verdict: 'unknown' };
+      if (/^0x0*1$/.test(result)) {
+        const transaction = await findTransaction(url, accepted.asset, auth.from, auth.nonce);
+        return transaction ? { verdict: 'settled', transaction } : { verdict: 'settled' };
+      }
+      if (/^0x0*$/.test(result)) {
+        // "Not used" is only final once the chain itself has passed the deadline. The buyer's clock can be fast and an
+        // RPC node can lag, so compare against the latest block's own timestamp, not against our clock.
+        const validBefore = Number(auth.validBefore);
+        if (!Number.isFinite(validBefore) || validBefore <= 0) return { verdict: 'unknown' };
+        const block = (await rpc(url, 'eth_getBlockByNumber', ['latest', false])) as { timestamp?: unknown } | null;
+        const chainTime = typeof block?.timestamp === 'string' ? Number(BigInt(block.timestamp)) : NaN;
+        return chainTime >= validBefore ? { verdict: 'unsettled' } : { verdict: 'unknown' };
+      }
+      return { verdict: 'unknown' };
     } catch {
-      return 'unknown';
+      return { verdict: 'unknown' };
     }
   };
 }

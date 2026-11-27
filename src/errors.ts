@@ -47,3 +47,24 @@ export class StoreConflictError extends Error {
     this.name = 'StoreConflictError';
   }
 }
+
+/** Internal: the stored record changed since we read it. Never reaches the caller. */
+export class StaleRecordError extends Error {
+  constructor(intent: string) {
+    super(`The saved payment for "${intent}" changed while we were working on it.`);
+    this.name = 'StaleRecordError';
+  }
+}
+
+/**
+ * Another process finished this same purchase while this call was waiting. The resource went to that process, not this
+ * one, and signing a new payment here would pay twice. Nothing was charged by this call.
+ */
+export class PurchaseSettledElsewhereError extends Error {
+  readonly record: PaymentRecord;
+  constructor(record: PaymentRecord) {
+    super(`"${record.intent}" was paid and delivered by another process while this call was waiting. No new payment was signed.`);
+    this.name = 'PurchaseSettledElsewhereError';
+    this.record = record;
+  }
+}

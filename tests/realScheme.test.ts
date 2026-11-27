@@ -86,7 +86,7 @@ describe('with the official EVM scheme', () => {
     };
     const resolve = evmAuthorizationResolver({ rpcUrls: { 'eip155:84532': 'https://rpc.test' }, fetch: rpc as typeof fetch });
 
-    expect(await resolve(record)).toBe('settled');
+    expect((await resolve(record)).verdict).toBe('settled');
     expect(calls[0]?.to).toBe(record.payload.accepted.asset);
     expect(calls[0]?.data).toBe('0xe94a0102' + '0'.repeat(24) + account.address.slice(2).toLowerCase() + nonce.slice(2).toLowerCase());
     expect(URL_A).toBeTruthy();
@@ -100,16 +100,79 @@ describe('with the official EVM scheme', () => {
     const paid = createPaidFetch({ client, fetch: merchant.fetch, store, now: clock.now });
     await attempt(paid);
     const record = (await store.get([...store['records'].keys()][0]!)) as PaymentRecord;
-    const answer = (result: unknown, ok = true) =>
+    const auth = record.payload.payload['authorization'] as { validBefore: string };
+    const pastDeadline = '0x' + (Number(auth.validBefore) + 5).toString(16);
+    const answer = (callResult: unknown, ok = true, blockTime: string = pastDeadline) =>
       evmAuthorizationResolver({
         rpcUrls: { 'eip155:84532': 'https://rpc.test' },
-        fetch: (async () => new Response(JSON.stringify(result), { status: ok ? 200 : 500 })) as typeof fetch,
+        fetch: (async (_url: RequestInfo | URL, init?: RequestInit) => {
+          const method = (JSON.parse(String(init?.body)) as { method: string }).method;
+          if (method === 'eth_getBlockByNumber') return new Response(JSON.stringify({ result: { timestamp: blockTime } }));
+          return new Response(JSON.stringify(callResult), { status: ok ? 200 : 500 });
+        }) as typeof fetch,
       });
 
-    expect(await answer({ result: '0x' + '0'.repeat(64) })(record)).toBe('unsettled');
-    expect(await answer({ error: { code: -32000 } })(record)).toBe('unknown');
-    expect(await answer({ result: '0x2' })(record)).toBe('unknown');
-    expect(await answer({}, false)(record)).toBe('unknown');
-    expect(await evmAuthorizationResolver({ rpcUrls: {} })(record)).toBe('unknown'); // no RPC for this network
+    expect(await answer({ result: '0x' + '0'.repeat(64) })(record)).toEqual({ verdict: 'unsettled' });
+    expect(await answer({ error: { code: -32000 } })(record)).toEqual({ verdict: 'unknown' });
+    expect(await answer({ result: '0x2' })(record)).toEqual({ verdict: 'unknown' });
+    expect(await answer({}, false)(record)).toEqual({ verdict: 'unknown' });
+    expect(await evmAuthorizationResolver({ rpcUrls: {} })(record)).toEqual({ verdict: 'unknown' }); // no RPC for this network
+  });
+
+  it('never says "unsettled" while the chain\'s own clock is before the deadline (fast buyer clock, lagging node)', async () => {
+    const clock = createClock(Date.now());
+    const merchant = createSimulatedMerchant({ now: clock.now, faults: scriptedFaults('error-before-settle') });
+    const { client } = realClient(clock.now);
+    const store = new MemoryPaymentStore();
+    const paid = createPaidFetch({ client, fetch: merchant.fetch, store, now: clock.now });
+    await attempt(paid);
+    const record = (await store.get([...store['records'].keys()][0]!)) as PaymentRecord;
+    const validBefore = Number((record.payload.payload['authorization'] as { validBefore: string }).validBefore);
+    const chain = (timestamp: unknown) =>
+      evmAuthorizationResolver({
+        rpcUrls: { 'eip155:84532': 'https://rpc.test' },
+        fetch: (async (_u: RequestInfo | URL, init?: RequestInit) => {
+          const method = (JSON.parse(String(init?.body)) as { method: string }).method;
+          if (method === 'eth_getBlockByNumber') return new Response(JSON.stringify({ result: timestamp === undefined ? null : { timestamp } }));
+          return new Response(JSON.stringify({ result: '0x' + '0'.repeat(64) }));
+        }) as typeof fetch,
+      });
+    expect(await chain('0x' + (validBefore - 1).toString(16))(record)).toEqual({ verdict: 'unknown' });
+    expect(await chain(undefined)(record)).toEqual({ verdict: 'unknown' });
+    expect(await chain('0x' + validBefore.toString(16))(record)).toEqual({ verdict: 'unsettled' });
+  });
+
+  it('names the transaction when the chain can show it, and still answers when it cannot', async () => {
+    const clock = createClock(Date.now());
+    const merchant = createSimulatedMerchant({ now: clock.now, faults: scriptedFaults('error-before-settle') });
+    const { client, account } = realClient(clock.now);
+    const store = new MemoryPaymentStore();
+    const paid = createPaidFetch({ client, fetch: merchant.fetch, store, now: clock.now });
+    await attempt(paid);
+    const record = (await store.get([...store['records'].keys()][0]!)) as PaymentRecord;
+    const nonce = (record.payload.payload['authorization'] as { nonce: string }).nonce;
+    const txHash = '0x' + 'ab'.repeat(32);
+
+    const requests: { method: string; params: unknown[] }[] = [];
+    const chain = (logsFail: boolean) =>
+      (async (_url: RequestInfo | URL, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
+        requests.push(body);
+        if (body.method === 'eth_call') return new Response(JSON.stringify({ result: '0x' + '0'.repeat(63) + '1' }));
+        if (body.method === 'eth_blockNumber') return new Response(JSON.stringify({ result: '0x2710' }));
+        if (logsFail) return new Response(JSON.stringify({ error: { code: -32005, message: 'range too large' } }));
+        return new Response(JSON.stringify({ result: [{ transactionHash: txHash }] }));
+      }) as typeof fetch;
+    const rpcUrls = { 'eip155:84532': 'https://rpc.test' };
+
+    expect(await evmAuthorizationResolver({ rpcUrls, fetch: chain(false), lookbackBlocks: 100 })(record)).toEqual({ verdict: 'settled', transaction: txHash });
+    const query = requests.find((r) => r.method === 'eth_getLogs')!.params[0] as { fromBlock: string; topics: string[]; address: string };
+    expect(query.fromBlock).toBe('0x' + (10_000 - 100).toString(16));
+    expect(query.address).toBe(record.payload.accepted.asset);
+    expect(query.topics[0]).toBe('0x98de503528ee59b575ef0c0a2576a82497bfc029a5685b209e9ec333479b10a5');
+    expect(query.topics[1]).toBe('0x' + '0'.repeat(24) + account.address.slice(2).toLowerCase());
+    expect(query.topics[2]).toBe(nonce.toLowerCase());
+
+    expect(await evmAuthorizationResolver({ rpcUrls, fetch: chain(true) })(record)).toEqual({ verdict: 'settled' });
   });
 });

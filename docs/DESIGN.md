@@ -12,8 +12,8 @@ The signed payment is written to the store **before** it is sent. If the process
 3. Look up the record.
    - `settled` with a derived key: a new purchase. With a chosen key: `AlreadySettledError`.
    - `undelivered`: `SettledWithoutDeliveryError`, every time, until `forget`.
-   - `presented`, before the deadline: send the saved payment again (at most `maxPresentations` times).
-   - `presented`, past the deadline: wait out `expirySkewMs`, then ask the resolver. `settled` -> `undelivered`. `unsettled` -> `expired`, then sign a new payment. `unknown` or no resolver -> `UnresolvedPaymentError`.
+   - `presented`, before the deadline: send the saved payment again (at most `maxPresentations` times). If the seller refuses a re-sent payment and a resolver is configured, ask it: `settled` -> `undelivered` and throw (the seller took the money and will not serve it twice); anything else -> hand the refusal back unchanged.
+   - `presented`, past the deadline: inside the `expirySkewMs` window after the deadline throw `UnresolvedPaymentError` (clocks differ; try again shortly); after it, ask the resolver (a verdict, or `{verdict, transaction}`). `settled` -> `undelivered`. `unsettled` -> `expired`, then sign a new payment. `unknown` or no resolver -> `UnresolvedPaymentError`.
 4. No usable record: ask for the price (the 402), sign, then **compare-and-set** the record before sending. If another process saved first, drop the unsent payment and follow its record.
 
 ## Why the key is derived this way
@@ -24,3 +24,9 @@ The idempotency guarantee here is narrower than a general retry queue: one signe
 
 ## What the property tests found
 The first design set a payment to `settled` when the resolver said it had settled but the resource was never received. Under a derived key, `settled` means "done, the next call is a new purchase", so the next retry paid again. Property testing found it in under 20 random programs. The `undelivered` state fixes it.
+
+## Found by review, fixed
+- **A slow process could overwrite a newer payment.** Updates used to re-apply their change on top of whatever record was current. Now an update succeeds only from the exact version it read; on a conflict the call looks again, and if another process already completed the purchase it throws `PurchaseSettledElsewhereError` instead of buying again.
+- **"Never settled" trusted the buyer's clock.** The resolver now compares the chain's latest block time with `validBefore`.
+- **A chosen key was not tied to the request.** It is now combined with the request's hash.
+- **Lock breaking in the file store.** A stale lock is moved aside atomically and a writer re-checks that the lock is still its own right before the new record becomes visible. A residual window remains: a process that stalls between that check and the rename for longer than `staleLockMs` could still lose an update. Use a database store if that matters to you.

@@ -4,3 +4,8 @@ dist
 *.log
 .run
 coverage
+bench/.wallet.json
+bench/out
+bench/cache
+out
+cache

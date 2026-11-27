@@ -53,7 +53,14 @@ export interface PaymentStore {
  * Return `unknown` when you cannot tell. The wrapper then refuses to sign a new payment.
  */
 export type SettlementVerdict = 'settled' | 'unsettled' | 'unknown';
-export type SettlementResolver = (record: PaymentRecord) => Promise<SettlementVerdict>;
+
+/** A verdict, with the transaction that moved the money when the resolver could find it. */
+export interface SettlementFinding {
+  verdict: SettlementVerdict;
+  transaction?: string;
+}
+
+export type SettlementResolver = (record: PaymentRecord) => Promise<SettlementVerdict | SettlementFinding>;
 
 /** The part of `x402Client` that this package uses. */
 export interface X402ClientLike {
@@ -87,6 +94,8 @@ export interface PaidFetchOptions {
   intentKey?: (request: Request) => string | undefined | Promise<string | undefined>;
   /** Decides what to do with a payment that passed its deadline without an answer. Without one, the wrapper fails closed. */
   resolver?: SettlementResolver;
+  /** Longest to wait for the resolver before treating it as "cannot tell". Default 15000 ms. */
+  resolverTimeoutMs?: number;
   /** Most times one signed payment may be sent. Default 5. */
   maxPresentations?: number;
   /** Extra wait after the deadline before the resolver is asked, for clock differences. Default 30000 ms. */

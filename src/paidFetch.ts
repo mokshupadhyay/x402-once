@@ -1,7 +1,9 @@
 import type { PaymentRequired } from '@x402/core/types';
 import {
   AlreadySettledError,
+  PurchaseSettledElsewhereError,
   SettledWithoutDeliveryError,
+  StaleRecordError,
   StoreConflictError,
   TooManyPresentationsError,
   UnresolvedPaymentError,
@@ -9,7 +11,7 @@ import {
 import { deriveIntent } from './intent.js';
 import { expiryOf } from './resolve.js';
 import { MemoryPaymentStore } from './store.js';
-import type { PaidFetch, PaidFetchOptions, PaymentRecord, PaymentStore, X402HttpClientLike } from './types.js';
+import type { PaidFetch, PaidFetchOptions, PaymentRecord, PaymentStore, SettlementFinding, X402HttpClientLike } from './types.js';
 
 const MAX_PAYMENT_REQUIRED_BYTES = 64 * 1024;
 
@@ -29,7 +31,14 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
   const now = options.now ?? Date.now;
   const maxPresentations = options.maxPresentations ?? 5;
   const skew = options.expirySkewMs ?? 30_000;
-  const emit = options.onEvent ?? (() => {});
+  // A throwing listener must never lose a response that was already paid for.
+  const emit = (event: Parameters<NonNullable<PaidFetchOptions['onEvent']>>[0]): void => {
+    try {
+      options.onEvent?.(event);
+    } catch {
+      /* ignore */
+    }
+  };
   const inFlight = new Map<string, Promise<Response>>();
   let httpClientPromise: Promise<X402HttpClientLike> | undefined;
 
@@ -47,26 +56,71 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     return doFetch(outgoing);
   }
 
+  /**
+   * Moves a record forward from exactly the version we read. If anyone changed it meanwhile we do NOT re-apply our
+   * change on top of theirs (that could overwrite their newer payment): we stop, and the caller starts again from
+   * what is stored now.
+   */
   async function update(record: PaymentRecord, patch: Partial<PaymentRecord>): Promise<PaymentRecord> {
-    let base = record;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const next: PaymentRecord = { ...base, ...patch, version: base.version + 1, updatedAt: now() };
-      const result = await store.compareAndSet(record.intent, base.version, next);
-      if (result.ok) return next;
-      emit({ type: 'conflict', intent: record.intent });
-      if (!result.current) break;
-      base = result.current;
+    const next: PaymentRecord = { ...record, ...patch, version: record.version + 1, updatedAt: now() };
+    const result = await store.compareAndSet(record.intent, record.version, next);
+    if (result.ok) return next;
+    emit({ type: 'conflict', intent: record.intent });
+    throw new StaleRecordError(record.intent);
+  }
+
+  /** Asks the resolver, if there is one. A resolver that throws, or says nothing useful, counts as "cannot tell". */
+  async function resolve(record: PaymentRecord): Promise<SettlementFinding> {
+    if (!options.resolver) return { verdict: 'unknown' };
+    try {
+      const answer = await Promise.race([
+        options.resolver(record),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('resolver timed out')), options.resolverTimeoutMs ?? 15_000).unref?.()),
+      ]);
+      const finding: SettlementFinding = typeof answer === 'string' ? { verdict: answer } : answer;
+      const verdict = finding?.verdict;
+      return verdict === 'settled' || verdict === 'unsettled' ? finding : { verdict: 'unknown' };
+    } catch {
+      return { verdict: 'unknown' };
     }
-    throw new StoreConflictError(record.intent);
+  }
+
+  /** What to remember about the settlement when only the chain told us. */
+  function settleFrom(record: PaymentRecord, finding: SettlementFinding): Partial<PaymentRecord> {
+    if (!finding.transaction) return {};
+    const payer = (record.payload.payload['authorization'] as { from?: unknown } | undefined)?.from;
+    return {
+      settle: {
+        transaction: finding.transaction,
+        network: record.payload.accepted.network,
+        ...(typeof payer === 'string' ? { payer } : {}),
+      },
+    };
   }
 
   async function present(request: Request, record: PaymentRecord, reused: boolean): Promise<Response> {
     emit({ type: 'presented', intent: record.intent, presentation: record.presentations, reused });
     const response = await send(request, record.headers);
     if (response.ok) {
-      const settle = await readSettle(response);
-      await update(record, { status: 'settled', ...(settle ? { settle } : {}) });
-      emit({ type: 'settled', intent: record.intent });
+      try {
+        const settle = await readSettle(response);
+        await update(record, { status: 'settled', ...(settle ? { settle } : {}) });
+        emit({ type: 'settled', intent: record.intent });
+      } catch {
+        // The resource arrived and was paid for. Failing to write that down must not throw it away. The record stays
+        // `presented`; a later retry re-sends the same payment and, if the seller refuses it, the chain check reports it.
+      }
+      return response;
+    }
+    if (reused && options.resolver) {
+      // A payment that was sent before and is refused now has either never settled or has settled and will not be
+      // served twice. The chain knows which. If it settled, say so instead of handing back a bare error.
+      const finding = await resolve(record);
+      if (finding.verdict === 'settled') {
+        emit({ type: 'resolved', intent: record.intent, verdict: 'settled' });
+        const undelivered = await update(record, { status: 'undelivered', ...settleFrom(record, finding) });
+        throw new SettledWithoutDeliveryError(undelivered);
+      }
     }
     return response;
   }
@@ -98,10 +152,11 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     if (time <= record.expiresAt + skew) {
       throw new UnresolvedPaymentError(record, 'the deadline just passed and the chain cannot be trusted yet');
     }
-    const verdict = (await options.resolver?.(record)) ?? 'unknown';
+    const finding = await resolve(record);
+    const verdict = finding.verdict;
     emit({ type: 'resolved', intent: record.intent, verdict });
     if (verdict === 'settled') {
-      const undelivered = await update(record, { status: 'undelivered' });
+      const undelivered = await update(record, { status: 'undelivered', ...settleFrom(record, finding) });
       throw new SettledWithoutDeliveryError(undelivered);
     }
     if (verdict === 'unsettled') {
@@ -167,15 +222,26 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
   }
 
   async function run(request: Request, intent: string, explicit: boolean): Promise<Response> {
-    for (let round = 0; round < 3; round++) {
-      let previous = await store.get(intent);
-      if (previous) {
-        const existing = await handleExisting(request, previous);
-        if (existing instanceof Response) return existing;
-        previous = existing.fresh;
+    const startedAt = now();
+    let sawConflict = false;
+    for (let round = 0; round < 4; round++) {
+      try {
+        let previous = await store.get(intent);
+        if (previous && sawConflict && previous.status === 'settled' && previous.updatedAt >= startedAt) {
+          throw new PurchaseSettledElsewhereError(previous);
+        }
+        if (previous) {
+          const existing = await handleExisting(request, previous);
+          if (existing instanceof Response) return existing;
+          previous = existing.fresh;
+        }
+        const outcome = await createAndPresent(request, intent, explicit, previous);
+        if (outcome !== 'conflict') return outcome;
+      } catch (error) {
+        if (!(error instanceof StaleRecordError)) throw error;
+        sawConflict = true;
+        // Another process moved this purchase on while we were deciding. Look again; never act on the old picture.
       }
-      const outcome = await createAndPresent(request, intent, explicit, previous);
-      if (outcome !== 'conflict') return outcome;
     }
     throw new StoreConflictError(intent);
   }
@@ -184,8 +250,11 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     const request = new Request(input, init);
     const headerKey = request.headers.get('Idempotency-Key') ?? undefined;
     const chosen = (await options.intentKey?.(request)) ?? headerKey;
-    const intent = chosen ?? (await deriveIntent(request));
-    const explicit = chosen !== undefined;
+    const derived = await deriveIntent(request);
+    const explicit = chosen !== undefined && chosen !== '';
+    // A key the caller chose means "this exact purchase": it is bound to the request, so reusing a key for a different
+    // URL or body is a different purchase and can never send one request's payment to another resource.
+    const intent = explicit ? `${chosen}:${derived}` : derived;
 
     // Calls for the same purchase that overlap in time share one run. Every caller gets its own copy of the response.
     let running = inFlight.get(intent);
@@ -206,8 +275,17 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
    * `UnresolvedPaymentError` or `SettledWithoutDeliveryError` (for example, got a refund) and want to buy again.
    */
   async function forget(intent: string): Promise<void> {
-    const record = await store.get(intent);
-    if (record && record.status !== 'abandoned') await update(record, { status: 'abandoned' });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const record = await store.get(intent);
+      if (!record || record.status === 'abandoned') return;
+      try {
+        await update(record, { status: 'abandoned' });
+        return;
+      } catch (error) {
+        if (!(error instanceof StaleRecordError)) throw error;
+      }
+    }
+    throw new StoreConflictError(intent);
   }
 
   return Object.assign(paidFetch, { forget, store });

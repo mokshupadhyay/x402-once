@@ -5,3 +5,8 @@
 - `evmAuthorizationResolver`: asks the token contract (`authorizationState`) whether an EIP-3009 authorization was used.
 - `MemoryPaymentStore`.
 - `x402-once/testing`: in-process fault-injecting seller and fake EVM scheme.
+- `x402-once/node`: `FilePaymentStore` (durable, fsync + atomic rename, per-purchase lock, fails closed on corrupt files).
+- Resolvers may return `{ verdict, transaction? }`; `evmAuthorizationResolver` finds the transaction (`AuthorizationUsed` log).
+- A re-sent payment that the seller refuses and the chain shows as used now throws `SettledWithoutDeliveryError` immediately (with a resolver).
+- `bench/`: a benchmark that runs the official x402 seller and facilitator code on a local chain or Base Sepolia and counts transfers on chain.
+- Fixes from review: no more overwriting another process's newer payment (`PurchaseSettledElsewhereError`), chain-time check in the resolver, keys bound to the request, safer lock breaking, `resolverTimeoutMs`, a throwing `onEvent` or store write no longer loses a delivered response.

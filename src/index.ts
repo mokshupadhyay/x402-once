@@ -5,6 +5,7 @@ export { evmAuthorizationResolver, expiryOf } from './resolve.js';
 export type { EvmAuthorizationResolverOptions } from './resolve.js';
 export {
   AlreadySettledError,
+  PurchaseSettledElsewhereError,
   SettledWithoutDeliveryError,
   StoreConflictError,
   TooManyPresentationsError,
@@ -18,6 +19,7 @@ export type {
   PaymentRecord,
   PaymentStatus,
   PaymentStore,
+  SettlementFinding,
   SettlementResolver,
   SettlementVerdict,
   X402ClientLike,

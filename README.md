@@ -7,7 +7,7 @@ If a response is lost after the seller settled, the stock x402 client signs a se
 - **One install.** It wraps the `x402Client` you already have. No queue library, no second dependency.
 - **Non-custodial.** Your client signs. This package never sees a key.
 - **Fails closed.** If it cannot tell whether an old payment settled, it signs nothing and says so.
-- **Tested against the bug.** Random faults, clock jumps and retries never charge a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 9 of 9 deliberate breaks are caught.
+- **Tested against the bug.** Random faults, clock jumps and retries never charge a purchase twice. The same test finds a double charge in the stock client every time. [Mutation evidence](docs/MUTATION_EVIDENCE.md): 22 of 22 deliberate breaks are caught.
 
 > **Status: 0.0.0, not published.** The evidence so far comes from a simulated seller. See [What is and is not proven](#what-is-and-is-not-proven).
 
@@ -52,13 +52,33 @@ Retry the same call as often as you like. The same signed payment goes out each 
 | still valid | sends the same signed payment again |
 | past its deadline, and the chain says it was **never used** | signs a new payment (safe: the old one can no longer settle) |
 | past its deadline, and the chain says it **was used** | throws `SettledWithoutDeliveryError`: you paid, the resource never arrived. Ask the seller; do not pay again |
+| still valid, but the seller **refuses** the re-sent payment and the chain says it was **used** (needs a `resolver`) | throws `SettledWithoutDeliveryError` at once, with the transaction hash when the RPC can find it. Without a `resolver` you get the seller's 402 back |
+| past its deadline, but only by less than `expirySkewMs` (30 s) | throws `UnresolvedPaymentError`; retry a little later |
 | past its deadline, and nobody can tell | throws `UnresolvedPaymentError` and signs nothing |
+
+If another process finishes the same purchase while your call is waiting, you get `PurchaseSettledElsewhereError` and nothing is signed. A key you choose is bound to the request: the same key on a different URL or body is a different purchase, and an empty key counts as no key.
+
+`forget` is for after you have dealt with an error. Calling it on a payment that is still valid lets the next call sign a new one, which can pay twice.
 
 After a delivered purchase, the next identical call is a **new** purchase. To make a key mean "this exact purchase, ever", pass your own: an `Idempotency-Key` header or the `intentKey` option. Then a second call throws `AlreadySettledError`. To buy again on purpose after an error, call `paidFetch.forget(error.record.intent)`.
 
 ### Stores
 
 `MemoryPaymentStore` is the default. It protects retries inside one process and forgets everything on restart. **For crashes and restarts, pass a durable `store`** (anything that implements `get` and an atomic `compareAndSet`). A saved record holds a signed authorization: protect it like a session token.
+
+For a single machine, use the file store. It writes each record to disk before returning (temp file, fsync, rename) and takes a per-purchase lock, so a restart or a second process on the same machine sees the same payments:
+
+```ts
+import { FilePaymentStore } from 'x402-once/node';
+
+const paidFetch = createPaidFetch({ client, store: new FilePaymentStore({ directory: './.x402-once' }) });
+```
+
+A corrupt record file is an error, never "nothing was paid". It does not work across machines sharing a network drive; for that, implement `PaymentStore` over a database with a conditional update. Files are created readable by the owner only.
+
+### Custom resolvers
+
+`resolver` may return `'settled' | 'unsettled' | 'unknown'`, or `{ verdict, transaction? }`. The transaction, when you can supply it, ends up in the error and the saved record. Anything else, or a throw, counts as `unknown`. `evmAuthorizationResolver` returns the object form; it answers `unsettled` only when the latest block's own timestamp is past the authorization's `validBefore` (your clock and a lagging RPC node are not trusted for that), and it looks up the transaction in the last `lookbackBlocks` (default 5000) blocks and still answers if the RPC refuses the range.
 
 ## Test your own client
 
@@ -76,16 +96,25 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 
 ## What is and is not proven
 
-**Proven (simulated seller, 36 tests, 30,000-run property check):**
+**Proven (64 tests; the property tests run a few hundred random programs by default, and `RUNS=30000 npx vitest --run tests/properties.test.ts --testTimeout=300000` passes):**
 - No purchase is paid twice under random faults, clock jumps and retries. The identical test finds double charges in the stock `@x402/fetch` wrapper.
 - The deadline is read from the real signed EIP-3009 authorization (checked with the official `@x402/evm` scheme and a throwaway key, no network).
 - The property tests found a real bug in the first design (a payment that settled but was never delivered could be bought again). It is fixed and has a regression test.
 
 **Not proven yet:**
-- Behaviour against a real facilitator on a live chain. A Base Sepolia run is planned.
+- Behaviour on a public testnet. The benchmark in [bench/](bench/README.md) runs the official seller and facilitator code on a local chain (40 purchases, 30% of paid requests lose their response; seed `bench-1`); the Base Sepolia run is set up but not yet done.
+
+| Seller | Client | Delivered | Transfers on chain | Items charged twice | Wasted transfers |
+|---|---|---|---|---|---|
+| plain (like the official middleware) | stock `@x402/fetch` | 38/40 | 51 | 9 | 11 |
+| plain | `x402-once` | 31/40, the other 9 reported as `SettledWithoutDeliveryError` with the transaction | 40 | 0 | 0 |
+| replays a settled payment | stock | 38/40 | 51 | 9 | 11 |
+| replays a settled payment | `x402-once` | 40/40 | 40 | 0 | 0 |
+
+The trade is plain: with a seller that cannot replay, `x402-once` will not pay twice to get the data back, so some items are paid for and not delivered, and it says so. Local chain only; numbers from a public testnet are still to come.
 - Solana (`svm`) payments. Only the EVM `exact` scheme is covered; other schemes fall back to the seller's `maxTimeoutSeconds` and have no resolver, so they fail closed.
 - x402 v1 payloads, axios, and the client's recovery hooks.
-- A durable store: only the in-memory one ships.
+- Two machines sharing one store. `FilePaymentStore` is for one machine.
 
 **Cannot fix, by design:** a seller or facilitator that settles the same payment twice ([#786](https://github.com/x402-foundation/x402/issues/786)), and sellers that answer a replay with a refusal instead of the resource (the buyer is charged once but gets nothing; the error says so).
 

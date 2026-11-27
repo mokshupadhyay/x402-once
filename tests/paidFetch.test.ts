@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   AlreadySettledError,
   MemoryPaymentStore,
+  PurchaseSettledElsewhereError,
   SettledWithoutDeliveryError,
   TooManyPresentationsError,
   UnresolvedPaymentError,
@@ -203,6 +204,84 @@ describe('after the deadline', () => {
   });
 });
 
+describe('a re-sent payment is refused', () => {
+  const TX = '0x' + 'cd'.repeat(32);
+
+  it('settled on chain: stops at once with the transaction, before the deadline, and never presents again', async () => {
+    const { merchant, store, paidFetch } = setup(
+      { faults: scriptedFaults('drop-after-settle') },
+      { resolver: async () => ({ verdict: 'settled', transaction: TX }) },
+    );
+    expect(await attempt(paidFetch)).toBe('network-error'); // paid, response lost; the seller does not replay
+
+    const error = (await paidFetch(URL_A).catch((e) => e)) as SettledWithoutDeliveryError;
+    expect(error).toBeInstanceOf(SettledWithoutDeliveryError);
+    expect(error.message).toContain(TX);
+    expect(error.record.status).toBe('undelivered');
+    expect(error.record.settle?.transaction).toBe(TX);
+    expect((await store.get(error.record.intent))?.status).toBe('undelivered');
+
+    const sent = merchant.paymentRequests;
+    await expect(paidFetch(URL_A)).rejects.toBeInstanceOf(SettledWithoutDeliveryError);
+    expect(merchant.paymentRequests).toBe(sent); // the third call did not send the payment again
+    expect(merchant.settlementCount).toBe(1);
+  });
+
+  it('settled on chain, no transaction found: still stops, without a transaction in the record', async () => {
+    const { paidFetch } = setup({ faults: scriptedFaults('drop-after-settle') }, { resolver: async () => 'settled' });
+    await attempt(paidFetch);
+    const error = (await paidFetch(URL_A).catch((e) => e)) as SettledWithoutDeliveryError;
+    expect(error).toBeInstanceOf(SettledWithoutDeliveryError);
+    expect(error.record.settle).toBeUndefined();
+  });
+
+  it('cannot tell, or the resolver throws: hands back the seller\'s refusal and keeps the payment', async () => {
+    for (const resolver of [async () => 'unknown' as const, async (): Promise<'settled'> => { throw new Error('rpc down'); }]) {
+      const { paidFetch, store } = setup({ faults: scriptedFaults('drop-after-settle') }, { resolver });
+      await attempt(paidFetch);
+      const response = (await paidFetch(URL_A)) as Response;
+      expect(response.status).toBe(402);
+      const record = await store.get([...(store as unknown as { records: Map<string, unknown> }).records.keys()][0]!);
+      expect(record?.status).toBe('presented');
+    }
+  });
+
+  it('unsettled on chain: hands back the refusal and keeps the payment', async () => {
+    const { paidFetch } = setup({ faults: scriptedFaults('drop-after-settle') }, { resolver: async () => ({ verdict: 'unsettled' }) });
+    await attempt(paidFetch);
+    expect(((await paidFetch(URL_A)) as Response).status).toBe(402);
+  });
+
+  it('without a resolver the behaviour is unchanged: the refusal comes back', async () => {
+    const { paidFetch } = setup({ faults: scriptedFaults('drop-after-settle') });
+    await attempt(paidFetch);
+    expect(((await paidFetch(URL_A)) as Response).status).toBe(402);
+  });
+});
+
+describe('two processes deciding about the same expired payment', () => {
+  it('a slow process never overwrites the newer payment another process saved (found by review)', async () => {
+    const store = new MemoryPaymentStore();
+    const gate: { release?: () => void } = {};
+    const slowResolver = () => new Promise<'unsettled'>((resolve) => { gate.release = () => resolve('unsettled'); });
+    const a = setup({ faults: scriptedFaults('drop-before-settle') }, { resolver: slowResolver }, store);
+    const b = setup({}, { resolver: async () => 'unsettled' as const }, store, undefined, a);
+
+    expect(await attempt(a.paidFetch)).toBe('network-error'); // signed, saved, never settled
+    a.clock.advance(61_000 + 31_000); // past the deadline for both processes (they share the clock)
+
+    const slow = attempt(a.paidFetch); // process A starts resolving and waits
+    await vi.waitFor(() => expect(gate.release).toBeDefined());
+    const fast = (await attempt(b.paidFetch)) as Response; // process B resolves, signs a new payment, and gets it settled
+    expect(fast.status).toBe(200);
+    gate.release!(); // now A's resolver answers "unsettled", but the record it looked at is gone
+    const late = await slow.catch((e) => e);
+
+    expect(a.merchant.settlementCount).toBe(1); // one purchase, one charge
+    expect(late).toBeInstanceOf(PurchaseSettledElsewhereError); // A is told, and signs nothing
+  });
+});
+
 describe('explicit keys', () => {
   it('refuses to pay again for a key that already settled', async () => {
     const { merchant, paidFetch } = setup();
@@ -215,8 +294,23 @@ describe('explicit keys', () => {
   it('uses the key from the intentKey option', async () => {
     const { merchant, paidFetch } = setup({ faults: scriptedFaults('drop-after-settle'), serveOnReplay: true }, { intentKey: () => 'k1' });
     await attempt(paidFetch, URL_A);
-    await attempt(paidFetch, URL_B); // different URL, same key: it is the same purchase
+    await attempt(paidFetch, URL_A); // same key, same request: the same purchase, sent again
     expect(merchant.settlementCount).toBe(1);
+  });
+
+  it('a key reused for a different request is a different purchase: one request\'s payment is never sent to another', async () => {
+    const { merchant, paidFetch } = setup({ faults: scriptedFaults('drop-after-settle'), serveOnReplay: true }, { intentKey: () => 'k1' });
+    await attempt(paidFetch, URL_A); // paid, response lost, still on record as presented
+    const other = (await attempt(paidFetch, URL_B)) as Response;
+    expect(other.status).toBe(200);
+    expect(merchant.settlements.map((s) => s.resource)).toEqual([URL_A, URL_B]); // each URL got its own payment
+  });
+
+  it('an empty Idempotency-Key is treated as no key', async () => {
+    const { merchant, paidFetch } = setup();
+    await paidFetch(URL_A, { headers: { 'Idempotency-Key': '' } });
+    await paidFetch(URL_A, { headers: { 'Idempotency-Key': '' } }); // would throw AlreadySettledError if it were a key
+    expect(merchant.settlementCount).toBe(2);
   });
 });
 
@@ -239,8 +333,8 @@ describe('limits', () => {
     for (const r of responses) expect(await r.json()).toEqual({ paid: true });
   });
 
-  it('with an explicit key, calls that overlap share one payment even without network delay', async () => {
-    const { merchant, paidFetch } = setup({}, { intentKey: () => 'order-7' });
+  it('with an explicit key, calls that overlap share one payment', async () => {
+    const { merchant, paidFetch } = setup({ latencyMs: 20 }, { intentKey: () => 'order-7' });
     const responses = await Promise.all(Array.from({ length: 5 }, () => paidFetch(URL_A)));
     expect(merchant.settlementCount).toBe(1);
     expect(responses.every((r) => r.status === 200)).toBe(true);
