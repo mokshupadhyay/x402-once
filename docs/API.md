@@ -26,6 +26,7 @@ Needs Node 20 or newer (Bun and Deno also work). Peer dependency: `@x402/core` 2
 | `httpClient` | `new x402HTTPClient(client)` | Override the HTTP side of the client. |
 | `fetch` | `globalThis.fetch` | The fetch to wrap. |
 | `store` | `new MemoryPaymentStore()` | Where signed payments are saved before they are sent. |
+| `scope` | none | A string, or `(request) => string \| undefined`. Who is buying (a tenant, account or user id). Mixed into the key derived from the request, so two buyers who send the same request are two purchases. Set it whenever one wrapper or one store serves more than one buyer. Not used for a key you choose with `intentKey` or `Idempotency-Key`: put the buyer in that key. |
 | `intentKey` | none | `(request) => string \| undefined`. Choose the purchase key yourself. Falls back to an `Idempotency-Key` header, then to a hash of method, URL and body. An empty string counts as no key. A chosen key is combined with the request's hash, so the same key on a different URL or body is a different purchase. |
 | `resolver` | none | Decides whether an old payment settled. Without one the wrapper fails closed after the deadline. Use `evmAuthorizationResolver`. |
 | `resolverTimeoutMs` | 15000 | A resolver that takes longer counts as "cannot tell". |
@@ -87,4 +88,4 @@ Records carry `schema: 1`. A record with a newer schema is refused, never guesse
 
 ## Not covered
 
-Solana and other non-EVM schemes (refused before sending unless `allowUninspected`), x402 v1 payloads, axios, `@x402/fetch` recovery hooks. Spend limits (maximum amount, allowed payees) are your `x402Client`'s job; this package does not add them. The derived purchase key does not include request headers such as `Authorization`: two callers with different credentials but the same URL, method and body share a purchase, so pass an `intentKey` that includes the caller if that matters.
+Solana and other non-EVM schemes (refused before sending unless `allowUninspected`), x402 v1 payloads, axios, `@x402/fetch` recovery hooks. Spend limits (maximum amount, allowed payees) are your `x402Client`'s job; this package does not add them. The derived purchase key does not include request headers such as `Authorization`: two callers with different credentials but the same URL, method and body share a purchase unless you set `scope` (or choose the key with `intentKey` and include the caller in it).

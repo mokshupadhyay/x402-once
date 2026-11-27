@@ -384,7 +384,8 @@ export function createPaidFetch(options: PaidFetchOptions): PaidFetch {
     request.signal.throwIfAborted(); // an already-cancelled call must not use up one of the saved payment's sends
     const headerKey = request.headers.get('Idempotency-Key') ?? undefined;
     const chosen = (await options.intentKey?.(request)) ?? headerKey;
-    const derived = await deriveIntent(request);
+    const scope = typeof options.scope === 'function' ? await options.scope(request) : options.scope;
+    const derived = await deriveIntent(request, scope);
     const explicit = chosen !== undefined && chosen !== '';
     // A key the caller chose means "this exact purchase": it is bound to the request, so reusing a key for a different
     // URL or body is a different purchase and can never send one request's payment to another resource.

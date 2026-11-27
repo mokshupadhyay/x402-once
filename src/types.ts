@@ -94,6 +94,14 @@ export interface PaidFetchOptions {
   store?: PaymentStore;
   /** Choose the purchase key yourself. Return `undefined` to fall back to the request's `Idempotency-Key` header, then to a key derived from method, URL and body. */
   intentKey?: (request: Request) => string | undefined | Promise<string | undefined>;
+  /**
+   * Who is buying, as a string (a tenant, account or user id), or a function that returns it per request. It is mixed into
+   * the key derived from the request, so two buyers who send the same request are two purchases and never share a saved
+   * payment. A request alone names the terms of a purchase, not the purchase. Set this whenever one store or one wrapper
+   * serves more than one buyer. Without it, identical requests share a key while one is unresolved. Not used for a key you
+   * choose yourself (`intentKey` or `Idempotency-Key`): put the buyer in that key.
+   */
+  scope?: string | ((request: Request) => string | undefined | Promise<string | undefined>);
   /** Decides what to do with a payment that passed its deadline without an answer. Without one, the wrapper fails closed. */
   resolver?: SettlementResolver;
   /** Longest to wait for the resolver before treating it as "cannot tell". Default 15000 ms. */

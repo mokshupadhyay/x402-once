@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+- New `scope` option (a string, or a function of the request): who is buying. It is mixed into the key derived from the request, so two buyers who send the same request are two purchases and no longer share one saved payment. Keys made without a scope are unchanged, so existing records stay valid. Raised in x402 #4198.
+- `bench/differential.mjs` (`npm run build && node bench/differential.mjs`): stock `@x402/fetch` against `x402-once` on the simulated seller, with 1000 identical concurrent calls, 500 distinct purchases, a lost response, and two buyers with and without `scope`. Results in `bench/results/differential.md`.
+- Docs: the guarantee is one presentation per purchase, not one signature; what a crash between signing and saving leaves behind; the chain, not the store, decides an outcome.
+
 ## 0.1.1 (2026-11-27)
 - Documentation only: README gains a "Related work" section (x402 #4094 proposes the same fix in `@x402/fetch`), the facilitator failure range is corrected to 5 to 8 per 100, and results from a further 40-purchase Base Sepolia run are added.
 - First release through npm trusted publishing (staged), with provenance.

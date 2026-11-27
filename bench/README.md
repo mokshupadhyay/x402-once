@@ -49,8 +49,16 @@ Faults are picked from a hash of (seed, URL, how many paid requests that URL has
 - The stock client always runs first in each scenario, so latency figures are indicative only.
 - Items-paid and charged-twice come from the seller's log; transfers on chain are independent. The run aborts if the two disagree or if the buyer's balance change does not match the transfers.
 
+## Concurrent calls: `bench/differential.mjs`
+
+This run needs no chain: `npm run build && node bench/differential.mjs [--identical 1000] [--distinct 500]`. It uses the in-process simulated seller and compares the stock wrapper with `x402-once` on 1000 identical overlapping calls, 500 distinct purchases (a control), a lost response followed by one retry, and two buyers sending the same request with and without `scope`. Output: `bench/results/differential.md`. Settlements here are the simulator's count of distinct authorizations, not transfers on a chain.
+
+## Reading failures on chain
+
+A purchase that did not deliver is one of two things, and `authorizationState(payer, nonce)` on the token tells them apart: `false` means the facilitator never landed a transaction (the authorization is unused and still the buyer's), `true` means the payment settled and only the response was lost. The Base Sepolia rows count failures as "not delivered"; they are settlement failures (`invalid_exact_evm_transaction_failed`, 5 to 8 per 100 on both clients, no money moved), not lost responses.
+
 ## Known limits
 
-- Sequential purchases only. Concurrent purchases are covered by the unit tests, not here.
+- The chain runs are sequential purchases only. Concurrent purchases are covered by `bench/differential.mjs` (simulated seller) and the unit tests.
 - One fault shape (the connection closes after settlement, or a 503). Slow responses that time out on the buyer's side are not simulated.
 - A local chain has instant gas and 1-second blocks. Base Sepolia numbers are the ones to quote.

@@ -291,3 +291,25 @@ describe('stores', () => {
     expect((await store.get('new-settled'))?.status).toBe('settled');
   });
 });
+
+describe('scope: two buyers, the same request', () => {
+  it('without a scope they share one purchase (the documented limit)', async () => {
+    const { merchant, paidFetch } = setup({ latencyMs: 5 });
+    await Promise.all([paidFetch(URL_A, { headers: { Authorization: 'Bearer tenant-a' } }), paidFetch(URL_A, { headers: { Authorization: 'Bearer tenant-b' } })]);
+    expect(merchant.settlementCount).toBe(1);
+  });
+
+  it('with a scope per buyer they are two purchases, and each buyer still pays once on retries', async () => {
+    const { merchant, paidFetch } = setup({ latencyMs: 5 }, { scope: (request) => request.headers.get('Authorization') ?? undefined });
+    const a = { headers: { Authorization: 'Bearer tenant-a' } };
+    const b = { headers: { Authorization: 'Bearer tenant-b' } };
+    await Promise.all([paidFetch(URL_A, a), paidFetch(URL_A, b), paidFetch(URL_A, a), paidFetch(URL_A, b)]);
+    expect(merchant.settlementCount).toBe(2);
+  });
+
+  it('a fixed scope keeps keys equal across calls', async () => {
+    const { merchant, paidFetch } = setup({ latencyMs: 5 }, { scope: 'tenant-a' });
+    await Promise.all(Array.from({ length: 20 }, () => paidFetch(URL_A)));
+    expect(merchant.settlementCount).toBe(1);
+  });
+});
