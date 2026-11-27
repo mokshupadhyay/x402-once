@@ -25,6 +25,12 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
+      - name: Diagnose TypeScript resolution
+        run: |
+          node -e "console.log('resolved', require.resolve('typescript'), require('typescript').version)"
+          npm ls typescript || true
+          echo "NODE_PATH=$NODE_PATH"; which -a tsc node npm || true
+          ls node_modules/typescript/package.json && grep '"version"' node_modules/typescript/package.json
       - run: npm run build
       - name: Secret scan
         run: node scripts/secret-scan.mjs
