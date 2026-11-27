@@ -34,7 +34,7 @@ export async function startSeller({ facilitatorUrl, network, payTo, asset, amoun
 
   const seen = new Map(); // url -> number of paid requests so far
   const remembered = new Map(); // nonce -> { status, headers, body }
-  const stats = { unpaid: 0, paid: 0, settledBySeller: 0, faultsInjected: { dropAfterSettle: 0, error503AfterSettle: 0, dropBeforeSettle: 0 }, replays: 0, rejected: 0, log: [] };
+  const stats = { unpaid: 0, paid: 0, settledBySeller: 0, faultsInjected: { dropAfterSettle: 0, error503AfterSettle: 0, dropBeforeSettle: 0 }, replays: 0, rejected: 0, rejections: [], log: [] };
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://seller.local');
@@ -82,7 +82,10 @@ export async function startSeller({ facilitatorUrl, network, payTo, asset, amoun
     try {
       const result = await httpServer.processHTTPRequest({ adapter, path: url.pathname, method: req.method, paymentHeader: header });
       if (result.type === 'payment-error') {
-        if (header) stats.rejected++;
+        if (header) {
+          stats.rejected++;
+          stats.rejections.push({ url: url.pathname, status: result.response.status, body: JSON.stringify(result.response.body ?? null).slice(0, 300), header: result.response.headers['PAYMENT-REQUIRED'] ? 'has PAYMENT-REQUIRED' : 'none' });
+        }
         return respond(result.response.status, result.response.headers, result.response.body);
       }
       if (result.type === 'no-payment-required') return respond(200, {}, { free: true });
@@ -98,6 +101,7 @@ export async function startSeller({ facilitatorUrl, network, payTo, asset, amoun
       });
       if (!settlement.success) {
         stats.rejected++;
+        stats.rejections.push({ url: url.pathname, stage: 'settle', reason: settlement.errorReason, message: settlement.errorMessage });
         return respond(settlement.response.status, settlement.response.headers, settlement.response.body);
       }
       stats.settledBySeller++;
@@ -126,6 +130,7 @@ export async function startSeller({ facilitatorUrl, network, payTo, asset, amoun
       seen.clear();
       remembered.clear();
       stats.unpaid = stats.paid = stats.settledBySeller = stats.replays = stats.rejected = 0;
+      stats.rejections = [];
       stats.faultsInjected = { dropAfterSettle: 0, error503AfterSettle: 0, dropBeforeSettle: 0 };
       stats.log = [];
     },

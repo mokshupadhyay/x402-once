@@ -113,16 +113,20 @@ Faults: `drop-before-settle`, `error-before-settle`, `drop-after-settle`, `error
 
 The trade is plain: with a seller that cannot replay, `x402-once` will not pay twice to get the data back, so some items are paid for and not delivered, and it says so. 
 
-**Base Sepolia** (20 purchases, same fault seed, real USDC, public facilitator):
+**Base Sepolia** (20 purchases per row, same fault schedule, real USDC, public facilitator). Two full runs:
 
-| Seller | Client | Delivered | Transfers on chain | Items charged twice | Wasted transfers |
+| Seller | Client | Delivered (run 1 / run 2) | Transfers on chain (run 1 / run 2) | Items settled (run 1 / run 2) | Extra transfers |
 |---|---|---|---|---|---|
-| plain | stock `@x402/fetch` | 19/20 | 28 | 6 | 8 |
-| plain | `x402-once` | 14/20, the other 6 reported with the transaction | 20 | 0 | 0 |
-| replays a settled payment | stock | 17/20 | 26 | 6 | 8 |
-| replays a settled payment | `x402-once` | 18/20 | 18 | 0 | 0 |
+| plain | stock `@x402/fetch` | 19 / 16 | 28 / 23 | 20 / 18 | 8 / 5 |
+| plain | `x402-once` | 14 / 13 | 20 / 19 | 20 / 19 | 0 / 0 |
+| replays a settled payment | stock | 17 / 17 | 26 / 26 | 18 / 19 | 8 / 7 |
+| replays a settled payment | `x402-once` | 18 / 19 | 18 / 19 | 18 / 19 | 0 / 0 |
 
-In the last two rows, 2 of 20 items were paid for by neither client (18 items settled each) and the cause is not yet explained; the run did not record the seller's rejection reasons. The 6 faulted items in the plain row happen to be the same count for both clients only because both met the same fault schedule. Small sample: treat the percentages loosely.
+- Across both runs the stock client paid 5 to 8 extra times per fault scenario. `x402-once` never paid twice.
+- With a plain seller, the items `x402-once` did not receive (6 and 7 per run) were all reported as `SettledWithoutDeliveryError`.
+- Some items settled for neither client. Run 2 recorded why: the **public facilitator itself** intermittently failed to settle (`invalid_exact_evm_transaction_failed`: its own transaction nonce was behind, or the RPC rejected the transaction). That is outside both clients and hit them at random, 1 to 3 times per row. This is also why delivered counts vary between runs.
+- Run 2 also shows what `x402-once` relies on: on a re-sent payment the facilitator answers `invalid_exact_evm_nonce_already_used`, and the chain confirms the payment was used.
+- Small sample, one network, one seller. Treat the percentages loosely; the extra-transfer counts are the solid part.
 - Solana (`svm`) payments. Only the EVM `exact` scheme is covered; other schemes fall back to the seller's `maxTimeoutSeconds` and have no resolver, so they fail closed.
 - x402 v1 payloads, axios, and the client's recovery hooks.
 - Two machines sharing one store. `FilePaymentStore` is for one machine.

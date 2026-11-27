@@ -145,6 +145,7 @@ async function main() {
         paidButNotDelivered: paidNotDelivered,
         toldItWasPaid,
         sellerReplays: seller.stats.replays,
+        rejections: seller.stats.rejections.slice(0, 20),
         faultsInjected: seller.stats.faultsInjected,
         errors,
         medianMs: Math.round(median(outcomes.map((o) => o.ms))),
