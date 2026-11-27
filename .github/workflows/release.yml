@@ -1,6 +1,8 @@
 name: release
-# Publishes when a version tag is pushed. Uses npm trusted publishing (OIDC): there is no npm token in this repository.
-# One-time setup on npmjs.com: add this repository, this workflow file and the environment below as a Trusted Publisher.
+# Stages a release when a version tag is pushed. Uses npm trusted publishing (OIDC): there is no npm token in this repository.
+# Two human gates: (1) the `npm-release` environment needs a reviewer's approval before this job runs; (2) `npm stage publish`
+# only uploads the package with its provenance, and a maintainer then approves it on npmjs.com with 2FA (or `npm stage approve <id>`).
+# The trusted publisher on npmjs.com allows `npm stage publish` only, not a direct `npm publish`.
 on:
   push:
     tags: ['v*.*.*']
@@ -22,8 +24,9 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@11.19.1 # `npm stage` and OIDC provenance need a recent npm
       - run: npm ci --ignore-scripts
       - run: npm run typecheck && npm test && npm run build
       - run: node scripts/secret-scan.mjs
       - run: npm audit signatures || (sleep 15 && npm audit signatures)
-      - run: npm publish --provenance --access public
+      - run: npm stage publish --provenance --access public
