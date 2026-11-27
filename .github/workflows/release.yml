@@ -25,5 +25,5 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck && npm test && npm run build
       - run: node scripts/secret-scan.mjs
-      - run: npm audit signatures
+      - run: npm audit signatures || (sleep 15 && npm audit signatures)
       - run: npm publish --provenance --access public

@@ -7,6 +7,10 @@ updates:
     cooldown:
       default-days: 7 # skip brand-new releases
     open-pull-requests-limit: 5
+    ignore:
+      # TypeScript 7 has no compiler API, which the type-file bundler (tsup) needs. Revisit when tsup supports it.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:

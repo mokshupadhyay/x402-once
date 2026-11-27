@@ -25,12 +25,6 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
-      - name: Diagnose TypeScript resolution
-        run: |
-          node -e "console.log('resolved', require.resolve('typescript'), require('typescript').version)"
-          npm ls typescript || true
-          echo "NODE_PATH=$NODE_PATH"; which -a tsc node npm || true
-          ls node_modules/typescript/package.json && grep '"version"' node_modules/typescript/package.json
       - run: npm run build
       - name: Secret scan
         run: node scripts/secret-scan.mjs
@@ -47,7 +41,8 @@ jobs:
           node -e "const m = require('x402-once'); if (typeof m.createPaidFetch !== 'function') process.exit(1)"
           node --input-type=module -e "import('x402-once/node').then(m => { if (typeof m.FilePaymentStore !== 'function') process.exit(1) })"
           npm audit --audit-level=high
-          npm audit signatures
+          # The signature service is occasionally flaky; a real tamper fails both tries.
+          npm audit signatures || (sleep 15 && npm audit signatures)
 
   core-compat:
     # The peer range is >=2.32.0 <3. Check the newest 2.x packages still typecheck and pass.
